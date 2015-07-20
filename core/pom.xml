@@ -166,8 +166,8 @@
                                     <!-- Format is URN of groupId:artifactId:version:type:classifier:scope:hash -->
                                     <!-- classifier is "null" if not present -->
                                     <urns>
-                                        <urn>org.coinj:orchid:1.0:jar:null:compile:c4c179e0bccbdaff5a740cd0a69caf097bfa5de1</urn>
-                                        <urn>org.coinj:wallet-protos-default:0.12.3-1.0:jar:null:compile:a72d05016f230d0749ed31d0b674232e87f5ce29</urn>
+                                        <urn>org.coinj:orchid:1.0:jar:null:compile:8196dd0af8630c98daf09ba785e41a395414bc6a</urn>
+                                        <urn>org.coinj:wallet-protos-default:0.12.3-1.0:jar:null:compile:994582d26bd0c5322675737ef6808dca6786c205</urn>
                                         <urn>cglib:cglib-nodep:2.2:jar:null:test:59afed7ab65e7ec6585d5bc60556c3cbd203532b</urn>
                                         <urn>com.google.code.findbugs:jsr305:2.0.1:jar:null:compile:516c03b21d50a644d538de0f0369c620989cd8f0</urn>
                                         <urn>com.google.guava:guava:16.0.1:jar:null:compile:5fa98cd1a63c99a44dd8d3b77e4762b066a5d0c5</urn>
