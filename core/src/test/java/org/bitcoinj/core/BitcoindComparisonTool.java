@@ -77,7 +77,7 @@ public class BitcoindComparisonTool {
         peers.setUserAgent("BlockAcceptanceComparisonTool", "1.0");
         
         // bitcoind MUST be on localhost or we will get banned as a DoSer
-        peers.addAddress(new PeerAddress(InetAddress.getByName("localhost"), args.length > 2 ? Integer.parseInt(args[2]) : params.getPort()));
+        peers.addAddress(new PeerAddress(InetAddress.getByName("localhost"), args.length > 2 ? Integer.parseInt(args[2]) : params.getPort(), params.protocolVersion));
 
         final Set<Sha256Hash> blocksRequested = Collections.synchronizedSet(new HashSet<Sha256Hash>());
         final AtomicInteger unexpectedInvs = new AtomicInteger(0);
@@ -107,7 +107,7 @@ public class BitcoindComparisonTool {
                     System.exit(1);
                 } else if (m instanceof GetDataMessage) {
                     for (InventoryItem item : ((GetDataMessage)m).items)
-                        if (item.type == InventoryItem.Type.Block)
+                        if (item.type.equals(InventoryItem.TYPE_BLOCK))
                             blocksRequested.add(item.hash);
                     return null;
                 } else if (m instanceof InventoryMessage) {

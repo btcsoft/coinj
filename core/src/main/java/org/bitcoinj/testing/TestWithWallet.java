@@ -21,6 +21,7 @@ import org.bitcoinj.params.UnitTestParams;
 import org.bitcoinj.store.BlockStore;
 import org.bitcoinj.store.MemoryBlockStore;
 import org.bitcoinj.utils.BriefLogFormatter;
+import org.coinj.api.CoinDefinition;
 
 import javax.annotation.Nullable;
 
@@ -35,10 +36,16 @@ import static org.bitcoinj.testing.FakeTxBuilder.createFakeTx;
  * with money in whatever ways you wish. Note that for simplicity with amounts, this class sets the default
  * fee per kilobyte to zero in setUp and back to normal in tearDown. If you are wanting to test your behaviour
  * with fees (a good idea!) make sure you set the {@link Wallet.SendRequest#DEFAULT_FEE_PER_KB} value to
- * {@link Transaction#REFERENCE_DEFAULT_MIN_TX_FEE} before doing so.
+ * {@link CoinDefinition#getDefaultMinTransactionFee()} before doing so.
  */
 public class TestWithWallet {
     protected static final NetworkParameters params = UnitTestParams.get();
+    protected static final Coin coin = Coin.coin(params.getCoinDefinition());
+    protected static final Coin zero = Coin.zero(params.getCoinDefinition());
+    protected static final Coin cent = Coin.cent(params.getCoinDefinition());
+    protected static final Coin satoshi = Coin.satoshi(params.getCoinDefinition());
+    protected static final Coin minTxFee = Coin.valueOf(params.getCoinDefinition().getDefaultMinTransactionFee(), params.getCoinDefinition());
+    protected static final Coin minNonDustTxOutput = Coin.valueOf(params.getCoinDefinition().getDustLimit(), params.getCoinDefinition());
     protected ECKey myKey;
     protected Address myAddress;
     protected Wallet wallet;
@@ -47,7 +54,7 @@ public class TestWithWallet {
 
     public void setUp() throws Exception {
         BriefLogFormatter.init();
-        Wallet.SendRequest.DEFAULT_FEE_PER_KB = Coin.ZERO;
+        Wallet.SendRequest.DEFAULT_FEE_PER_KB = zero;
         wallet = new Wallet(params);
         myKey = wallet.currentReceiveKey();
         myAddress = myKey.toAddress(params);
@@ -56,7 +63,7 @@ public class TestWithWallet {
     }
 
     public void tearDown() throws Exception {
-        Wallet.SendRequest.DEFAULT_FEE_PER_KB = Transaction.REFERENCE_DEFAULT_MIN_TX_FEE;
+        Wallet.SendRequest.DEFAULT_FEE_PER_KB = Wallet.SendRequest.defaultMinTransactionFee();
     }
 
     @Nullable

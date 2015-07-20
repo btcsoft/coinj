@@ -16,10 +16,10 @@
  */
 package org.bitcoinj.crypto;
 
-import org.bitcoinj.core.*;
 import com.google.common.base.Objects;
 import com.google.common.base.Objects.ToStringHelper;
 import com.google.common.collect.ImmutableList;
+import org.bitcoinj.core.*;
 import org.spongycastle.crypto.params.KeyParameter;
 import org.spongycastle.math.ec.ECPoint;
 
@@ -28,8 +28,8 @@ import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 
-import static org.bitcoinj.core.Utils.HEX;
 import static com.google.common.base.Preconditions.*;
+import static org.bitcoinj.core.Utils.HEX;
 
 /**
  * A deterministic key is a node in a {@link DeterministicHierarchy}. As per
@@ -157,7 +157,7 @@ public class DeterministicKey extends ECKey {
 
     /**
      * Returns private key bytes, padded with zeros to 33 bytes.
-     * @throws java.lang.IllegalStateException if the private key bytes are missing.
+     * @throws IllegalStateException if the private key bytes are missing.
      */
     public byte[] getPrivKeyBytes33() {
         byte[] bytes33 = new byte[33];
@@ -319,7 +319,7 @@ public class DeterministicKey extends ECKey {
     /**
      * Returns the private key of this deterministic key. Even if this object isn't storing the private key,
      * it can be re-derived by walking up to the parents if necessary and this is what will happen.
-     * @throws java.lang.IllegalStateException if the parents are encrypted or a watching chain.
+     * @throws IllegalStateException if the parents are encrypted or a watching chain.
      */
     @Override
     public BigInteger getPrivKey() {

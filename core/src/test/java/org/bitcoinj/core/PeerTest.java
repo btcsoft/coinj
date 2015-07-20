@@ -80,7 +80,7 @@ public class PeerTest extends TestWithNetworkConnections {
         memoryPool = new MemoryPool();
         VersionMessage ver = new VersionMessage(unitTestParams, 100);
         InetSocketAddress address = new InetSocketAddress("127.0.0.1", 4000);
-        peer = new Peer(unitTestParams, ver, new PeerAddress(address), blockChain, memoryPool);
+        peer = new Peer(unitTestParams, ver, new PeerAddress(address.getAddress(), 4000, unitTestParams.protocolVersion), blockChain, memoryPool);
         peer.addWallet(wallet);
     }
 
@@ -98,7 +98,8 @@ public class PeerTest extends TestWithNetworkConnections {
     private void connectWithVersion(int version) throws Exception {
         VersionMessage peerVersion = new VersionMessage(unitTestParams, OTHER_PEER_CHAIN_HEIGHT);
         peerVersion.clientVersion = version;
-        peerVersion.localServices = VersionMessage.NODE_NETWORK;
+        final Integer nodeNetworkConstant = unitTestParams.getCoinDefinition().getNodeNetworkConstant();
+        peerVersion.localServices = nodeNetworkConstant != null ? nodeNetworkConstant : 0;
         writeTarget = connect(peer, peerVersion);
     }
 
@@ -203,7 +204,7 @@ public class PeerTest extends TestWithNetworkConnections {
         Block b3 = makeSolvedTestBlock(b2);
         inbound(writeTarget, b3);
         InventoryMessage inv = new InventoryMessage(unitTestParams);
-        InventoryItem item = new InventoryItem(InventoryItem.Type.Block, b3.getHash());
+        InventoryItem item = InventoryItem.createBlockItem(b3.getHash());
         inv.addItem(item);
         inbound(writeTarget, inv);
 
@@ -232,7 +233,7 @@ public class PeerTest extends TestWithNetworkConnections {
 
         // Receive an inv.
         InventoryMessage inv = new InventoryMessage(unitTestParams);
-        InventoryItem item = new InventoryItem(InventoryItem.Type.Block, b2.getHash());
+        InventoryItem item = InventoryItem.createBlockItem(b2.getHash());
         inv.addItem(item);
         inbound(writeTarget, inv);
 
@@ -246,10 +247,10 @@ public class PeerTest extends TestWithNetworkConnections {
 
         peer.setDownloadData(true);
         // Make a transaction and tell the peer we have it.
-        Coin value = COIN;
+        Coin value = coin(unitTestParams.getCoinDefinition());
         Transaction tx = createFakeTx(unitTestParams, value, address);
         InventoryMessage inv = new InventoryMessage(unitTestParams);
-        InventoryItem item = new InventoryItem(InventoryItem.Type.Transaction, tx.getHash());
+        InventoryItem item = InventoryItem.createTransactionItem(tx.getHash());
         inv.addItem(item);
         inbound(writeTarget, inv);
         // Peer hasn't seen it before, so will ask for it.
@@ -269,20 +270,21 @@ public class PeerTest extends TestWithNetworkConnections {
         // Check co-ordination of which peer to download via the memory pool.
         VersionMessage ver = new VersionMessage(unitTestParams, 100);
         InetSocketAddress address = new InetSocketAddress("127.0.0.1", 4242);
-        Peer peer2 = new Peer(unitTestParams, ver, new PeerAddress(address), blockChain, memoryPool);
+        Peer peer2 = new Peer(unitTestParams, ver, new PeerAddress(address.getAddress(), address.getPort(), unitTestParams.protocolVersion), blockChain, memoryPool);
         peer2.addWallet(wallet);
         VersionMessage peerVersion = new VersionMessage(unitTestParams, OTHER_PEER_CHAIN_HEIGHT);
         peerVersion.clientVersion = 70001;
-        peerVersion.localServices = VersionMessage.NODE_NETWORK;
+        final Integer nodeNetworkConstant = unitTestParams.getCoinDefinition().getNodeNetworkConstant();
+        peerVersion.localServices = nodeNetworkConstant != null ? nodeNetworkConstant : 0;
 
         connect();
         InboundMessageQueuer writeTarget2 = connect(peer2, peerVersion);
 
         // Make a tx and advertise it to one of the peers.
-        Coin value = COIN;
+        Coin value = coin(unitTestParams.getCoinDefinition());
         Transaction tx = createFakeTx(unitTestParams, value, this.address);
         InventoryMessage inv = new InventoryMessage(unitTestParams);
-        InventoryItem item = new InventoryItem(InventoryItem.Type.Transaction, tx.getHash());
+        InventoryItem item = InventoryItem.createTransactionItem(tx.getHash());
         inv.addItem(item);
 
         inbound(writeTarget, inv);
@@ -307,7 +309,7 @@ public class PeerTest extends TestWithNetworkConnections {
         final Block b2 = makeSolvedTestBlock(b1);
         // Receive notification of a new block.
         final InventoryMessage inv = new InventoryMessage(unitTestParams);
-        InventoryItem item = new InventoryItem(InventoryItem.Type.Block, b2.getHash());
+        InventoryItem item = InventoryItem.createBlockItem(b2.getHash());
         inv.addItem(item);
 
         final AtomicInteger newBlockMessagesReceived = new AtomicInteger(0);
@@ -356,7 +358,7 @@ public class PeerTest extends TestWithNetworkConnections {
         List<InventoryItem> items = getdata.getItems();
         assertEquals(1, items.size());
         assertEquals(b2.getHash(), items.get(0).hash);
-        assertEquals(InventoryItem.Type.Block, items.get(0).type);
+        assertEquals(InventoryItem.TYPE_BLOCK, items.get(0).type);
     }
 
     // Check that it starts downloading the block chain correctly on request.
@@ -419,7 +421,7 @@ public class PeerTest extends TestWithNetworkConnections {
         Block b2 = makeSolvedTestBlock(b1);
         Transaction t = new Transaction(unitTestParams);
         t.addInput(b1.getTransactions().get(0).getOutput(0));
-        t.addOutput(new TransactionOutput(unitTestParams, t, Coin.ZERO, new byte[Block.MAX_BLOCK_SIZE - 1000]));
+        t.addOutput(new TransactionOutput(unitTestParams, t, Coin.zero(unitTestParams.getCoinDefinition()), new byte[unitTestParams.maxBlockSize - 1000]));
         b2.addTransaction(t);
 
         // Request the block.
@@ -473,7 +475,7 @@ public class PeerTest extends TestWithNetworkConnections {
         assertEquals(Sha256Hash.ZERO_HASH, getblocks.getStopHash());
         // We're supposed to get an inv here.
         InventoryMessage inv = new InventoryMessage(unitTestParams);
-        inv.addItem(new InventoryItem(InventoryItem.Type.Block, b3.getHash()));
+        inv.addItem(InventoryItem.createBlockItem(b3.getHash()));
         inbound(writeTarget, inv);
         GetDataMessage getdata = (GetDataMessage) outbound(writeTarget);
         assertEquals(b3.getHash(), getdata.getItems().get(0).hash);
@@ -519,7 +521,7 @@ public class PeerTest extends TestWithNetworkConnections {
         peer.setDownloadTxDependencies(false);
         connect();
         // Check that if we request dependency download to be disabled and receive a relevant tx, things work correctly.
-        Transaction tx = FakeTxBuilder.createFakeTx(unitTestParams, COIN, address);
+        Transaction tx = FakeTxBuilder.createFakeTx(unitTestParams, coin(unitTestParams.getCoinDefinition()), address);
         final Transaction[] result = new Transaction[1];
         wallet.addEventListener(new AbstractWalletEventListener() {
             @Override
@@ -562,14 +564,15 @@ public class PeerTest extends TestWithNetworkConnections {
         //      -> [t7]
         //      -> [t8]
         // The ones in brackets are assumed to be in the chain and are represented only by hashes.
-        Transaction t2 = FakeTxBuilder.createFakeTx(unitTestParams, COIN, to);
+        final Coin coin = coin(unitTestParams.getCoinDefinition());
+        Transaction t2 = FakeTxBuilder.createFakeTx(unitTestParams, coin, to);
         Sha256Hash t5 = t2.getInput(0).getOutpoint().getHash();
-        Transaction t4 = FakeTxBuilder.createFakeTx(unitTestParams, COIN, new ECKey());
+        Transaction t4 = FakeTxBuilder.createFakeTx(unitTestParams, coin, new ECKey());
         Sha256Hash t6 = t4.getInput(0).getOutpoint().getHash();
-        t4.addOutput(COIN, new ECKey());
+        t4.addOutput(coin, new ECKey());
         Transaction t3 = new Transaction(unitTestParams);
         t3.addInput(t4.getOutput(0));
-        t3.addOutput(COIN, new ECKey());
+        t3.addOutput(coin, new ECKey());
         Transaction t1 = new Transaction(unitTestParams);
         t1.addInput(t2.getOutput(0));
         t1.addInput(t3.getOutput(0));
@@ -577,7 +580,7 @@ public class PeerTest extends TestWithNetworkConnections {
         t1.addInput(new TransactionInput(unitTestParams, t1, new byte[]{}, new TransactionOutPoint(unitTestParams, 0, someHash)));
         Sha256Hash anotherHash = new Sha256Hash("3b801dd82f01d17bbde881687bf72bc62e2faa8ab8133d36fcb8c3abe7459da6");
         t1.addInput(new TransactionInput(unitTestParams, t1, new byte[]{}, new TransactionOutPoint(unitTestParams, 1, anotherHash)));
-        t1.addOutput(COIN, to);
+        t1.addOutput(coin, to);
         t1 = FakeTxBuilder.roundTripTransaction(unitTestParams, t1);
         t2 = FakeTxBuilder.roundTripTransaction(unitTestParams, t2);
         t3 = FakeTxBuilder.roundTripTransaction(unitTestParams, t3);
@@ -615,8 +618,8 @@ public class PeerTest extends TestWithNetworkConnections {
         inbound(writeTarget, t3);
         if (useNotFound) {
             NotFoundMessage notFound = new NotFoundMessage(unitTestParams);
-            notFound.addItem(new InventoryItem(InventoryItem.Type.Transaction, someHash));
-            notFound.addItem(new InventoryItem(InventoryItem.Type.Transaction, anotherHash));
+            notFound.addItem(InventoryItem.createTransactionItem(someHash));
+            notFound.addItem(InventoryItem.createTransactionItem(anotherHash));
             inbound(writeTarget, notFound);
         } else {
             inbound(writeTarget, new Pong(nonce));
@@ -628,7 +631,7 @@ public class PeerTest extends TestWithNetworkConnections {
         // t5 isn't found and t4 is.
         if (useNotFound) {
             NotFoundMessage notFound = new NotFoundMessage(unitTestParams);
-            notFound.addItem(new InventoryItem(InventoryItem.Type.Transaction, t5));
+            notFound.addItem(InventoryItem.createTransactionItem(t5));
             inbound(writeTarget, notFound);
         } else {
             bouncePing();
@@ -639,7 +642,7 @@ public class PeerTest extends TestWithNetworkConnections {
         assertEquals(t6, getdata.getItems().get(0).hash);
         if (useNotFound) {
             NotFoundMessage notFound = new NotFoundMessage(unitTestParams);
-            notFound.addItem(new InventoryItem(InventoryItem.Type.Transaction, t6));
+            notFound.addItem(InventoryItem.createTransactionItem(t6));
             inbound(writeTarget, notFound);
         } else {
             bouncePing();
@@ -683,7 +686,7 @@ public class PeerTest extends TestWithNetworkConnections {
             }
         });
         // Send a normal relevant transaction, it's received correctly.
-        Transaction t1 = FakeTxBuilder.createFakeTx(unitTestParams, COIN, key);
+        Transaction t1 = FakeTxBuilder.createFakeTx(unitTestParams, coin(unitTestParams.getCoinDefinition()), key);
         inbound(writeTarget, t1);
         GetDataMessage getdata = (GetDataMessage) outbound(writeTarget);
         if (useNotFound) {
@@ -743,6 +746,7 @@ public class PeerTest extends TestWithNetworkConnections {
 
     private void checkTimeLockedDependency(boolean shouldAccept, boolean useNotFound) throws Exception {
         // Initial setup.
+        final Coin coin = coin(unitTestParams.getCoinDefinition());
         connectWithVersion(useNotFound ? 70001 : 60001);
         Wallet wallet = new Wallet(unitTestParams);
         ECKey key = wallet.freshReceiveKey();
@@ -762,10 +766,10 @@ public class PeerTest extends TestWithNetworkConnections {
         Sha256Hash t3 = Sha256Hash.create("abc".getBytes(Charset.forName("UTF-8")));
         t2.addInput(new TransactionInput(unitTestParams, t2, new byte[]{}, new TransactionOutPoint(unitTestParams, 0, t3)));
         t2.getInput(0).setSequenceNumber(0xDEADBEEF);
-        t2.addOutput(COIN, new ECKey());
+        t2.addOutput(coin, new ECKey());
         Transaction t1 = new Transaction(unitTestParams);
         t1.addInput(t2.getOutput(0));
-        t1.addOutput(COIN, key);  // Make it relevant.
+        t1.addOutput(coin, key);  // Make it relevant.
         // Announce t1.
         InventoryMessage inv = new InventoryMessage(unitTestParams);
         inv.addTransaction(t1);
@@ -788,7 +792,7 @@ public class PeerTest extends TestWithNetworkConnections {
         // Can't find it: bottom of tree.
         if (useNotFound) {
             NotFoundMessage notFound = new NotFoundMessage(unitTestParams);
-            notFound.addItem(new InventoryItem(InventoryItem.Type.Transaction, t3));
+            notFound.addItem(InventoryItem.createTransactionItem(t3));
             inbound(writeTarget, notFound);
         } else {
             bouncePing();
@@ -857,14 +861,15 @@ public class PeerTest extends TestWithNetworkConnections {
             }
         });
         connect();
+        final Coin coin = coin(unitTestParams.getCoinDefinition());
         Transaction t1 = new Transaction(unitTestParams);
         t1.addInput(new TransactionInput(unitTestParams, t1, new byte[]{}));
-        t1.addOutput(COIN, new ECKey().toAddress(unitTestParams));
+        t1.addOutput(coin, new ECKey().toAddress(unitTestParams));
         Transaction t2 = new Transaction(unitTestParams);
         t2.addInput(t1.getOutput(0));
-        t2.addOutput(COIN, wallet.getChangeAddress());
+        t2.addOutput(coin, wallet.getChangeAddress());
         inbound(writeTarget, t2);
-        final InventoryItem inventoryItem = new InventoryItem(InventoryItem.Type.Transaction, t2.getInput(0).getOutpoint().getHash());
+        final InventoryItem inventoryItem = InventoryItem.createTransactionItem(t2.getInput(0).getOutpoint().getHash());
         final NotFoundMessage nfm = new NotFoundMessage(unitTestParams, Lists.newArrayList(inventoryItem));
         inbound(writeTarget, nfm);
         pingAndWait(writeTarget);
@@ -896,12 +901,14 @@ public class PeerTest extends TestWithNetworkConnections {
         // Now write some bogus truncated message.
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         serializer.serialize("inv", new InventoryMessage(params) {
+            private static final long serialVersionUID = -2589577943427576490L;
+
             @Override
             public void bitcoinSerializeToStream(OutputStream stream) throws IOException {
                 // Add some hashes.
-                addItem(new InventoryItem(InventoryItem.Type.Transaction, Sha256Hash.create(new byte[] { 1 })));
-                addItem(new InventoryItem(InventoryItem.Type.Transaction, Sha256Hash.create(new byte[] { 2 })));
-                addItem(new InventoryItem(InventoryItem.Type.Transaction, Sha256Hash.create(new byte[] { 3 })));
+                addItem(InventoryItem.createTransactionItem(Sha256Hash.create(new byte[] {1})));
+                addItem(InventoryItem.createTransactionItem(Sha256Hash.create(new byte[] {2})));
+                addItem(InventoryItem.createTransactionItem(Sha256Hash.create(new byte[] {3})));
 
                 // Write out a copy that's truncated in the middle.
                 ByteArrayOutputStream bos = new ByteArrayOutputStream();

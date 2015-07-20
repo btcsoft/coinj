@@ -25,7 +25,7 @@ package org.bitcoinj.core;
  * required to trigger it.
  */
 @SuppressWarnings("serial")
-public class PrunedException extends Exception {
+public class PrunedException extends Exception implements Hashable {
     private Sha256Hash hash;
     public PrunedException(Sha256Hash hash) {
         super(hash.toString());

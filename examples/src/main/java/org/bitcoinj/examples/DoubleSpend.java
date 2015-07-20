@@ -1,5 +1,6 @@
 package org.bitcoinj.examples;
 
+import org.coinj.api.CoinDefinition;
 import org.bitcoinj.core.*;
 import org.bitcoinj.kits.WalletAppKit;
 import org.bitcoinj.params.RegTestParams;
@@ -27,9 +28,10 @@ public class DoubleSpend {
 
         System.out.println(kit.wallet());
 
-        kit.wallet().getBalanceFuture(COIN, Wallet.BalanceType.AVAILABLE).get();
-        Transaction tx1 = kit.wallet().createSend(new Address(params, "muYPFNCv7KQEG2ZLM7Z3y96kJnNyXJ53wm"), CENT);
-        Transaction tx2 = kit.wallet().createSend(new Address(params, "muYPFNCv7KQEG2ZLM7Z3y96kJnNyXJ53wm"), CENT.add(SATOSHI.multiply(10)));
+        final CoinDefinition def = params.getCoinDefinition();
+        kit.wallet().getBalanceFuture(coin(def), Wallet.BalanceType.AVAILABLE).get();
+        Transaction tx1 = kit.wallet().createSend(new Address(params, "muYPFNCv7KQEG2ZLM7Z3y96kJnNyXJ53wm"), cent(def));
+        Transaction tx2 = kit.wallet().createSend(new Address(params, "muYPFNCv7KQEG2ZLM7Z3y96kJnNyXJ53wm"), cent(def).add(satoshi(def).multiply(10)));
         final Peer peer = kit.peerGroup().getConnectedPeers().get(0);
         peer.addEventListener(new AbstractPeerEventListener() {
             @Override

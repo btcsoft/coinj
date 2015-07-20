@@ -1,5 +1,6 @@
 /**
  * Copyright 2011 Google Inc.
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +19,7 @@ package org.bitcoinj.core;
 
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
+import org.coinj.api.CoinDefinition;
 
 import java.util.Arrays;
 
@@ -27,6 +29,7 @@ import java.util.Arrays;
  * the last byte is a discriminator value for the compressed pubkey.
  */
 public class DumpedPrivateKey extends VersionedChecksummedBytes {
+    private static final long serialVersionUID = -6803196568427915993L;
     private boolean compressed;
 
     // Used by ECKey.getPrivateKeyEncoded()
@@ -57,9 +60,12 @@ public class DumpedPrivateKey extends VersionedChecksummedBytes {
      */
     public DumpedPrivateKey(NetworkParameters params, String encoded) throws AddressFormatException {
         super(encoded);
-        if (params != null && version != params.getDumpedPrivateKeyHeader())
-            throw new AddressFormatException("Mismatched version number, trying to cross networks? " + version +
-                    " vs " + params.getDumpedPrivateKeyHeader());
+        if (params != null) {
+            final CoinDefinition def = params.getCoinDefinition();
+            if (!(def.isBitcoinPrivateKeyAllowed() && (version == def.getAllowedPrivateKey())) && version != params.getDumpedPrivateKeyHeader()) {
+                throw new AddressFormatException("Mismatched version number, trying to cross networks? " + version + " vs " + params.getDumpedPrivateKeyHeader());
+            }
+        }
         if (bytes.length == 33 && bytes[32] == 1) {
             compressed = true;
             bytes = Arrays.copyOf(bytes, 32);  // Chop off the additional marker byte.

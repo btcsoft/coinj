@@ -32,6 +32,9 @@ import com.google.common.base.Objects;
  * dumpprivkey command.</p>
  */
 public class VersionedChecksummedBytes implements Serializable {
+
+    private static final long serialVersionUID = 1L;
+
     protected final int version;
     protected byte[] bytes;
 

@@ -20,7 +20,7 @@ import com.google.common.util.concurrent.CycleDetectingLockFactory;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.Uninterruptibles;
-import org.bitcoinj.core.*;
+import org.bitcoinj.core.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -51,7 +51,7 @@ public class Threading {
 
     /**
      * A dummy executor that just invokes the runnable immediately. Use this over
-     * {@link com.google.common.util.concurrent.MoreExecutors#sameThreadExecutor()} because the latter creates a new
+     * {@link MoreExecutors#sameThreadExecutor()} because the latter creates a new
      * object each time in order to implement the more complex {@link ExecutorService} interface, which is overkill
      * for our needs.
      */
@@ -93,7 +93,7 @@ public class Threading {
         private LinkedBlockingQueue<Runnable> tasks;
 
         public UserThread() {
-            super("bitcoinj user thread");
+            super("coinj user thread");
             setDaemon(true);
             tasks = new LinkedBlockingQueue<Runnable>();
             start();
@@ -107,7 +107,7 @@ public class Threading {
                     task.run();
                 } catch (Throwable throwable) {
                     log.warn("Exception in user thread", throwable);
-                    Thread.UncaughtExceptionHandler handler = uncaughtExceptionHandler;
+                    UncaughtExceptionHandler handler = uncaughtExceptionHandler;
                     if (handler != null)
                         handler.uncaughtException(this, throwable);
                 }
@@ -115,7 +115,7 @@ public class Threading {
         }
 
         @Override
-        public void execute(Runnable command) {
+        public void execute(@Nonnull Runnable command) {
             final int size = tasks.size();
             if (size > WARNING_THRESHOLD) {
                 log.warn(

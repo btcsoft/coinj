@@ -51,6 +51,8 @@ import static org.junit.Assert.*;
 
 public class WalletProtobufSerializerTest {
     static final NetworkParameters params = UnitTestParams.get();
+    static final Coin zero = Coin.zero(params.getCoinDefinition());
+    static final Coin fiftyCoins = Coin.fiftyCoins(params.getCoinDefinition());
     private ECKey myKey;
     private ECKey myWatchedKey;
     private Address myAddress;
@@ -80,7 +82,7 @@ public class WalletProtobufSerializerTest {
         // Check the base case of a wallet with one key and no transactions.
         Wallet wallet1 = roundTrip(myWallet);
         assertEquals(0, wallet1.getTransactions(true).size());
-        assertEquals(Coin.ZERO, wallet1.getBalance());
+        assertEquals(zero, wallet1.getBalance());
         assertArrayEquals(myKey.getPubKey(),
                 wallet1.findKeyFromPubHash(myKey.getPubKeyHash()).getPubKey());
         assertArrayEquals(myKey.getPrivKeyBytes(),
@@ -98,10 +100,10 @@ public class WalletProtobufSerializerTest {
     @Test
     public void oneTx() throws Exception {
         // Check basic tx serialization.
-        Coin v1 = COIN;
+        Coin v1 = coin(params.getCoinDefinition());
         Transaction t1 = createFakeTx(params, v1, myAddress);
-        t1.getConfidence().markBroadcastBy(new PeerAddress(InetAddress.getByName("1.2.3.4")));
-        t1.getConfidence().markBroadcastBy(new PeerAddress(InetAddress.getByName("5.6.7.8")));
+        t1.getConfidence().markBroadcastBy(new PeerAddress(InetAddress.getByName("1.2.3.4"), params.getPort(), params.protocolVersion));
+        t1.getConfidence().markBroadcastBy(new PeerAddress(InetAddress.getByName("5.6.7.8"), params.getPort(), params.protocolVersion));
         t1.getConfidence().setSource(TransactionConfidence.Source.NETWORK);
         myWallet.receivePending(t1, null);
         Wallet wallet1 = roundTrip(myWallet);
@@ -112,7 +114,7 @@ public class WalletProtobufSerializerTest {
         assertEquals(2, t1copy.getConfidence().numBroadcastPeers());
         assertEquals(TransactionConfidence.Source.NETWORK, t1copy.getConfidence().getSource());
         
-        Protos.Wallet walletProto = new WalletProtobufSerializer().walletToProto(myWallet);
+        Protos.Wallet walletProto = new WalletProtobufSerializer(params.getCoinDefinition()).walletToProto(myWallet);
         assertEquals(Protos.Key.Type.ORIGINAL, walletProto.getKey(0).getType());
         assertEquals(0, walletProto.getExtensionCount());
         assertEquals(1, walletProto.getTransactionCount());
@@ -142,7 +144,7 @@ public class WalletProtobufSerializerTest {
         assertEquals(1, wallet1.getTransactions(true).size());
         Transaction t1 = wallet1.getTransaction(doubleSpends.t1.getHash());
         assertEquals(ConfidenceType.DEAD, t1.getConfidence().getConfidenceType());
-        assertEquals(Coin.ZERO, wallet1.getBalance());
+        assertEquals(zero, wallet1.getBalance());
 
         // TODO: Wallet should store overriding transactions even if they are not wallet-relevant.
         // assertEquals(doubleSpends.t2, t1.getConfidence().getOverridingTransaction());
@@ -167,7 +169,7 @@ public class WalletProtobufSerializerTest {
 
         // LastBlockSeenHash should be empty if never set.
         Wallet wallet = new Wallet(params);
-        Protos.Wallet walletProto = new WalletProtobufSerializer().walletToProto(wallet);
+        Protos.Wallet walletProto = new WalletProtobufSerializer(params.getCoinDefinition()).walletToProto(wallet);
         ByteString lastSeenBlockHash = walletProto.getLastSeenBlockHash();
         assertTrue(lastSeenBlockHash.isEmpty());
 
@@ -263,18 +265,18 @@ public class WalletProtobufSerializerTest {
 
     private static Wallet roundTrip(Wallet wallet) throws Exception {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-        new WalletProtobufSerializer().writeWallet(wallet, output);
+        new WalletProtobufSerializer(params.getCoinDefinition()).writeWallet(wallet, output);
         ByteArrayInputStream test = new ByteArrayInputStream(output.toByteArray());
         assertTrue(WalletProtobufSerializer.isWallet(test));
         ByteArrayInputStream input = new ByteArrayInputStream(output.toByteArray());
-        return new WalletProtobufSerializer().readWallet(input);
+        return new WalletProtobufSerializer(params.getCoinDefinition()).readWallet(input);
     }
 
     @Test
     public void testRoundTripNormalWallet() throws Exception {
         Wallet wallet1 = roundTrip(myWallet);     
         assertEquals(0, wallet1.getTransactions(true).size());
-        assertEquals(Coin.ZERO, wallet1.getBalance());
+        assertEquals(zero, wallet1.getBalance());
         assertArrayEquals(myKey.getPubKey(),
                 wallet1.findKeyFromPubHash(myKey.getPubKeyHash()).getPubKey());
         assertArrayEquals(myKey.getPrivKeyBytes(),
@@ -295,7 +297,7 @@ public class WalletProtobufSerializerTest {
 
         Wallet wallet1 = roundTrip(myWallet);
         assertEquals(0, wallet1.getTransactions(true).size());
-        assertEquals(Coin.ZERO, wallet1.getBalance());
+        assertEquals(zero, wallet1.getBalance());
         assertEquals(2, wallet1.getSigsRequiredToSpend());
         assertEquals(myAddress, wallet1.currentAddress(KeyChain.KeyPurpose.RECEIVE_FUNDS));
     }
@@ -303,7 +305,7 @@ public class WalletProtobufSerializerTest {
     @Test
     public void coinbaseTxns() throws Exception {
         // Covers issue 420 where the outpoint index of a coinbase tx input was being mis-serialized.
-        Block b = params.getGenesisBlock().createNextBlockWithCoinbase(myKey.getPubKey(), FIFTY_COINS);
+        Block b = params.getGenesisBlock().createNextBlockWithCoinbase(myKey.getPubKey(), fiftyCoins);
         Transaction coinbase = b.getTransactions().get(0);
         assertTrue(coinbase.isCoinBase());
         BlockChain chain = new BlockChain(params, myWallet, new MemoryBlockStore(params));
@@ -327,15 +329,15 @@ public class WalletProtobufSerializerTest {
     @Test
     public void testExtensions() throws Exception {
         myWallet.addExtension(new SomeFooExtension("com.whatever.required", true));
-        Protos.Wallet proto = new WalletProtobufSerializer().walletToProto(myWallet);
+        Protos.Wallet proto = new WalletProtobufSerializer(params.getCoinDefinition()).walletToProto(myWallet);
         // Initial extension is mandatory: try to read it back into a wallet that doesn't know about it.
         try {
-            new WalletProtobufSerializer().readWallet(params, null, proto);
+            new WalletProtobufSerializer(params.getCoinDefinition()).readWallet(params, null, proto);
             fail();
         } catch (UnreadableWalletException e) {
             assertTrue(e.getMessage().contains("mandatory"));
         }
-        Wallet wallet = new WalletProtobufSerializer().readWallet(params,
+        Wallet wallet = new WalletProtobufSerializer(params.getCoinDefinition()).readWallet(params,
                 new WalletExtension[]{ new SomeFooExtension("com.whatever.required", true) },
                 proto);
         assertTrue(wallet.getExtensions().containsKey("com.whatever.required"));
@@ -343,16 +345,16 @@ public class WalletProtobufSerializerTest {
         // Non-mandatory extensions are ignored if the wallet doesn't know how to read them.
         Wallet wallet2 = new Wallet(params);
         wallet2.addExtension(new SomeFooExtension("com.whatever.optional", false));
-        Protos.Wallet proto2 = new WalletProtobufSerializer().walletToProto(wallet2);
-        Wallet wallet5 = new WalletProtobufSerializer().readWallet(params, null, proto2);
+        Protos.Wallet proto2 = new WalletProtobufSerializer(params.getCoinDefinition()).walletToProto(wallet2);
+        Wallet wallet5 = new WalletProtobufSerializer(params.getCoinDefinition()).readWallet(params, null, proto2);
         assertEquals(0, wallet5.getExtensions().size());
     }
 
     @Test(expected = UnreadableWalletException.FutureVersion.class)
     public void versions() throws Exception {
-        Protos.Wallet.Builder proto = Protos.Wallet.newBuilder(new WalletProtobufSerializer().walletToProto(myWallet));
+        Protos.Wallet.Builder proto = Protos.Wallet.newBuilder(new WalletProtobufSerializer(params.getCoinDefinition()).walletToProto(myWallet));
         proto.setVersion(2);
-        new WalletProtobufSerializer().readWallet(params, null, proto.build());
+        new WalletProtobufSerializer(params.getCoinDefinition()).readWallet(params, null, proto.build());
     }
 
     private static class SomeFooExtension implements WalletExtension {

@@ -16,12 +16,13 @@
 
 package org.bitcoinj.tools;
 
+import org.coinj.api.CoinLocator;
 import org.bitcoinj.crypto.TrustStoreLoader;
 import org.bitcoinj.protocols.payments.PaymentProtocol;
 import org.bitcoinj.protocols.payments.PaymentProtocolException;
 import org.bitcoinj.protocols.payments.PaymentSession;
-import org.bitcoinj.uri.BitcoinURI;
-import org.bitcoinj.uri.BitcoinURIParseException;
+import org.bitcoinj.uri.CoinURI;
+import org.bitcoinj.uri.CoinURIParseException;
 import org.bitcoin.protocols.payments.Protos;
 
 import java.io.FileInputStream;
@@ -56,15 +57,15 @@ public class PaymentProtocolTool {
                 stream.close();
                 session = new PaymentSession(request);
             } else if (uri.getScheme().equals("http")) {
-                session = PaymentSession.createFromUrl(arg).get();
+                session = PaymentSession.createFromUrl(arg, CoinLocator.discoverCoinDefinition()).get();
             } else if (uri.getScheme().equals("bitcoin")) {
-                BitcoinURI bcuri = new BitcoinURI(arg);
+                CoinURI bcuri = new CoinURI(arg);
                 final String paymentRequestUrl = bcuri.getPaymentRequestUrl();
                 if (paymentRequestUrl == null) {
                     System.err.println("No r= param in bitcoin URI");
                     return;
                 }
-                session = PaymentSession.createFromBitcoinUri(bcuri).get();
+                session = PaymentSession.createFromBitcoinUri(bcuri, CoinLocator.discoverCoinDefinition()).get();
             } else {
                 System.err.println("Unknown URI scheme: " + uri.getScheme());
                 return;
@@ -87,7 +88,7 @@ public class PaymentProtocolTool {
             System.out.println(output);
         } catch (URISyntaxException e) {
             System.err.println("Could not parse URI: " + e.getMessage());
-        } catch (BitcoinURIParseException e) {
+        } catch (CoinURIParseException e) {
             System.err.println("Could not parse URI: " + e.getMessage());
         } catch (PaymentProtocolException.PkiVerificationException e) {
             System.err.println(e.getMessage());

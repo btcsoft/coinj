@@ -20,8 +20,8 @@ import java.io.IOException;
 import java.io.OutputStream;
 
 public class Pong extends Message {
-    /** The smallest protocol version that supports the pong response (BIP 31). Anything beyond version 60000. */
-    public static final int MIN_PROTOCOL_VERSION = 60001;
+
+    private static final long serialVersionUID = 4652681840050858259L;
 
     private long nonce;
 

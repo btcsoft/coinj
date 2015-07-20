@@ -18,9 +18,9 @@
 
 package org.bitcoinj.script;
 
+import com.google.common.collect.Lists;
 import org.bitcoinj.core.*;
 import org.bitcoinj.crypto.TransactionSignature;
-import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongycastle.crypto.digests.RIPEMD160Digest;
@@ -35,8 +35,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
-import static org.bitcoinj.script.ScriptOpCodes.*;
 import static com.google.common.base.Preconditions.*;
+import static org.bitcoinj.script.ScriptOpCodes.*;
 
 /**
  * <p>Programs embedded inside transactions that control redemption of payments.</p>
@@ -117,6 +117,15 @@ public class Script {
         StringBuilder buf = new StringBuilder();
         for (ScriptChunk chunk : chunks)
             buf.append(chunk).append(' ');
+        if (buf.length() > 0)
+            buf.setLength(buf.length() - 1);
+        return buf.toString();
+    }
+
+    public String satoshiStyleToString() {
+        final StringBuilder buf = new StringBuilder();
+        for (final ScriptChunk chunk : chunks)
+            buf.append(chunk.satoshiStyleToString()).append(' ');
         if (buf.length() > 0)
             buf.setLength(buf.length() - 1);
         return buf.toString();

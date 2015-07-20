@@ -16,8 +16,8 @@
 
 package org.bitcoinj.store;
 
-import org.bitcoinj.core.*;
 import com.google.common.collect.Lists;
+import org.bitcoinj.core.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -685,7 +685,7 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
             s.setBytes(1, out.getHash().getBytes());
             // index is actually an unsigned int
             s.setInt(2, (int)out.getIndex());
-            s.setInt(3, out.getHeight());
+            s.setInt(3, out.getCoinbaseHeight());
             s.setBytes(4, BigInteger.valueOf(out.getValue().value).toByteArray());
             s.setBytes(5, out.getScriptBytes());
             s.executeUpdate();
@@ -775,4 +775,5 @@ public class H2FullPrunedBlockStore implements FullPrunedBlockStore {
                 } catch (SQLException e) { throw new BlockStoreException("Failed to close PreparedStatement"); }
         }
     }
+
 }

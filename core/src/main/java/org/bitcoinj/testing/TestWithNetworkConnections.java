@@ -81,7 +81,7 @@ public class TestWithNetworkConnections {
         BriefLogFormatter.init();
 
         unitTestParams = UnitTestParams.get();
-        Wallet.SendRequest.DEFAULT_FEE_PER_KB = Coin.ZERO;
+        Wallet.SendRequest.DEFAULT_FEE_PER_KB = Coin.zero(unitTestParams.getCoinDefinition());
         this.blockStore = blockStore;
         // Allow subclasses to override the wallet object with their own.
         if (wallet == null)
@@ -127,7 +127,7 @@ public class TestWithNetworkConnections {
     }
 
     public void tearDown() throws Exception {
-        Wallet.SendRequest.DEFAULT_FEE_PER_KB = Transaction.REFERENCE_DEFAULT_MIN_TX_FEE;
+        Wallet.SendRequest.DEFAULT_FEE_PER_KB = Wallet.SendRequest.defaultMinTransactionFee();
         stopPeerServers();
     }
 

@@ -16,9 +16,9 @@
 
 package org.bitcoinj.crypto;
 
+import com.google.common.collect.ImmutableList;
 import org.bitcoinj.core.ECKey;
 import org.bitcoinj.core.Utils;
-import com.google.common.collect.ImmutableList;
 import org.spongycastle.crypto.macs.HMac;
 import org.spongycastle.math.ec.ECPoint;
 

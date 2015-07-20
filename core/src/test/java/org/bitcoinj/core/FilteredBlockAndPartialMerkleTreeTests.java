@@ -75,8 +75,8 @@ public class FilteredBlockAndPartialMerkleTreeTests extends TestWithPeerGroup {
     public void createFilteredBlock() throws Exception {
         ECKey key1 = new ECKey();
         ECKey key2 = new ECKey();
-        Transaction tx1 = FakeTxBuilder.createFakeTx(params, Coin.COIN,  key1);
-        Transaction tx2 = FakeTxBuilder.createFakeTx(params, Coin.FIFTY_COINS, key2.toAddress(params));
+        Transaction tx1 = FakeTxBuilder.createFakeTx(params, Coin.coin(params.getCoinDefinition()),  key1);
+        Transaction tx2 = FakeTxBuilder.createFakeTx(params, Coin.fiftyCoins(params.getCoinDefinition()), key2.toAddress(params));
         Block block = FakeTxBuilder.makeSolvedTestBlock(params.getGenesisBlock(), new Address(params, "msg2t2V2sWNd85LccoddtWysBTR8oPnkzW"), tx1, tx2);
         BloomFilter filter = new BloomFilter(4, 0.1, 1);
         filter.insert(key1);
@@ -182,7 +182,7 @@ public class FilteredBlockAndPartialMerkleTreeTests extends TestWithPeerGroup {
         assertTrue(getData instanceof GetDataMessage);
         assertTrue(((GetDataMessage)getData).getItems().size() == 1);
         assertTrue(((GetDataMessage)getData).getItems().get(0).hash.equals(block.getHash()));
-        assertTrue(((GetDataMessage)getData).getItems().get(0).type == InventoryItem.Type.FilteredBlock);
+        assertTrue(((GetDataMessage)getData).getItems().get(0).type.equals(InventoryItem.TYPE_FILTERED_BLOCK));
         
         // Check that we then immediately pinged.
         Object ping = outbound(p1);
@@ -201,7 +201,7 @@ public class FilteredBlockAndPartialMerkleTreeTests extends TestWithPeerGroup {
         Set<Transaction> transactions = wallet.getTransactions(false);
         assertTrue(transactions.size() == 4);
         for (Transaction tx : transactions) {
-            assertTrue(tx.getConfidence().getConfidenceType() == ConfidenceType.BUILDING);
+            assertTrue(tx.getConfidence().getConfidenceType().equals(ConfidenceType.BUILDING));
             assertTrue(tx.getConfidence().getDepthInBlocks() == 1);
             assertTrue(tx.getAppearsInHashes().keySet().contains(block.getHash()));
             assertTrue(tx.getAppearsInHashes().size() == 1);

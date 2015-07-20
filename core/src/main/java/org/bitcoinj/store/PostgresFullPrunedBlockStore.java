@@ -17,9 +17,9 @@
 
 package org.bitcoinj.store;
 
+import com.google.common.collect.Lists;
 import org.bitcoinj.core.*;
 import org.bitcoinj.script.Script;
-import com.google.common.collect.Lists;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -823,7 +823,7 @@ public class PostgresFullPrunedBlockStore implements FullPrunedBlockStore {
             s.setBytes(1, out.getHash().getBytes());
             // index is actually an unsigned int
             s.setInt(2, (int)out.getIndex());
-            s.setInt(3, out.getHeight());
+            s.setInt(3, out.getCoinbaseHeight());
             s.setBytes(4, BigInteger.valueOf(out.getValue().value).toByteArray());
             s.setBytes(5, out.getScriptBytes());
             s.setString(6, dbAddress);
@@ -947,8 +947,7 @@ public class PostgresFullPrunedBlockStore implements FullPrunedBlockStore {
 
 
         try {
-            s = conn.get().prepareStatement("select sum(('x'||lpad(substr(value::text, 3, 50),16,'0'))::bit(64)::bigint) "
-                    + "from openoutputs where toaddress = ?");
+            s = conn.get().prepareStatement("select sum(('x'||lpad(substr(value::text, 3, 50),16,'0'))::bit(64)::bigint) from openoutputs where toaddress = ?");
             s.setString(1, address.toString());
             ResultSet rs = s.executeQuery();
             if (rs.next()) {
@@ -968,6 +967,5 @@ public class PostgresFullPrunedBlockStore implements FullPrunedBlockStore {
                 }
         }
     }
-
 
 }

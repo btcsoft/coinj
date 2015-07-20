@@ -127,7 +127,7 @@ public class ChannelTestUtils {
     public static RecordingPair makeRecorders(final Wallet serverWallet, final TransactionBroadcaster mockBroadcaster, int maxExpireTime) {
         RecordingPair pair = new RecordingPair();
         pair.serverRecorder = new RecordingServerConnection();
-        pair.server = new PaymentChannelServer(mockBroadcaster, serverWallet, Coin.COIN, pair.serverRecorder);
+        pair.server = new PaymentChannelServer(mockBroadcaster, serverWallet, Coin.coin(), pair.serverRecorder);
         pair.clientRecorder = new RecordingClientConnection(maxExpireTime);
         return pair;
     }

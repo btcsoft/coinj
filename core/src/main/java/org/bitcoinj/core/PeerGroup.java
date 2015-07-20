@@ -1,6 +1,7 @@
 /**
  * Copyright 2013 Google Inc.
  * Copyright 2014 Andreas Schildbach
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +18,16 @@
 
 package org.bitcoinj.core;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.net.InetAddresses;
+import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
+import com.google.common.util.concurrent.*;
+import com.subgraph.orchid.TorClient;
+import net.jcip.annotations.GuardedBy;
 import org.bitcoinj.crypto.DRMWorkaround;
 import org.bitcoinj.net.BlockingClientManager;
 import org.bitcoinj.net.ClientConnectionManager;
@@ -29,33 +40,19 @@ import org.bitcoinj.script.Script;
 import org.bitcoinj.utils.ExponentialBackoff;
 import org.bitcoinj.utils.ListenerRegistration;
 import org.bitcoinj.utils.Threading;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.net.InetAddresses;
-import com.google.common.primitives.Ints;
-import com.google.common.primitives.Longs;
-import com.google.common.util.concurrent.*;
-import com.subgraph.orchid.TorClient;
-import net.jcip.annotations.GuardedBy;
+import org.coinj.api.CoinDefinition;
+import org.coinj.api.PeerGroupExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.net.Inet6Address;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.NoRouteToHostException;
-import java.net.Socket;
+import java.net.*;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.ReentrantLock;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Preconditions.*;
 
 /**
  * <p>Runs a set of connections to the P2P network, brings up connections to replace disconnected nodes and manages
@@ -116,7 +113,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
     // until we reach this count.
     @GuardedBy("lock") private int maxConnections;
     // Minimum protocol version we will allow ourselves to connect to: require Bloom filtering.
-    private volatile int vMinRequiredProtocolVersion = FilteredBlock.MIN_PROTOCOL_VERSION;
+    private volatile int vMinRequiredProtocolVersion;
 
     // Runs a background thread that we use for scheduling pings to our peers, so we can measure their performance
     // and network latency. We ping peers every pingIntervalMsec milliseconds.
@@ -130,6 +127,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
 
     private final NetworkParameters params;
     private final AbstractBlockChain chain;
+    private final PeerGroupExtension extension;
     @GuardedBy("lock") private long fastCatchupTimeSecs;
     private final CopyOnWriteArrayList<Wallet> wallets;
     private final CopyOnWriteArrayList<PeerFilterProvider> peerFilterProviders;
@@ -155,7 +153,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         }
     };
 
-    private int minBroadcastConnections = 0;
+    private int minBroadcastConnections;
     private final AbstractWalletEventListener walletEventListener = new AbstractWalletEventListener() {
         // Because calculation of the new filter takes place asynchronously, these flags deduplicate requests.
         @GuardedBy("this") private boolean sendIfChangedQueued, dontSendQueued;
@@ -227,7 +225,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
             // and shouldn't, we should just recalculate and cache the new filter for next time.
             for (TransactionOutput output : tx.getOutputs()) {
                 if (output.getScriptPubKey().isSentToRawPubKey() && output.isMine(wallet)) {
-                    if (tx.getConfidence().getConfidenceType() == TransactionConfidence.ConfidenceType.BUILDING)
+                    if (tx.getConfidence().getConfidenceType().equals(TransactionConfidence.ConfidenceType.BUILDING))
                         queueRecalc(true);
                     else
                         queueRecalc(false);
@@ -382,6 +380,10 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         peerEventListeners = new CopyOnWriteArrayList<ListenerRegistration<PeerEventListener>>();
         runningBroadcasts = Collections.synchronizedSet(new HashSet<TransactionBroadcast>());
         bloomFilterMerger = new FilterMerger(DEFAULT_BLOOM_FILTER_FP_RATE);
+        final CoinDefinition def = params.getCoinDefinition();
+        vMinRequiredProtocolVersion = def.getMinBloomProtocolVersion();
+        minBroadcastConnections = def.getMinBroadcastConnections();
+        extension = def.createPeerGroupExtension(this);
     }
 
     /**
@@ -455,28 +457,34 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         // Runs on peer threads.
         lock.lock();
         try {
-            LinkedList<Message> transactions = new LinkedList<Message>();
+            LinkedList<Message> messages = new LinkedList<Message>();
             LinkedList<InventoryItem> items = new LinkedList<InventoryItem>(m.getItems());
             Iterator<InventoryItem> it = items.iterator();
             while (it.hasNext()) {
                 InventoryItem item = it.next();
-                // Check the mempool first.
-                Transaction tx = memoryPool.get(item.hash);
-                if (tx != null) {
-                    transactions.add(tx);
-                    it.remove();
+                // Check extensions first.
+                final Message message = extension.handleGetDataExtension(item);
+                if (message != null) {
+                    messages.add(message);
                 } else {
-                    // Check the wallets.
-                    for (Wallet w : wallets) {
-                        tx = w.getTransaction(item.hash);
-                        if (tx == null) continue;
-                        transactions.add(tx);
+                    // Then check the mempool.
+                    Transaction tx = memoryPool.get(item.hash);
+                    if (tx != null) {
+                        messages.add(tx);
                         it.remove();
-                        break;
+                    } else {
+                        // Check the wallets.
+                        for (Wallet w : wallets) {
+                            tx = w.getTransaction(item.hash);
+                            if (tx == null) continue;
+                            messages.add(tx);
+                            it.remove();
+                            break;
+                        }
                     }
                 }
             }
-            return transactions;
+            return messages;
         } finally {
             lock.unlock();
         }
@@ -643,7 +651,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
 
     /** Convenience method for addAddress(new PeerAddress(address, params.port)); */
     public void addAddress(InetAddress address) {
-        addAddress(new PeerAddress(address, params.getPort()));
+        addAddress(new PeerAddress(address, params.getPort(), params.protocolVersion));
     }
 
     /**
@@ -677,14 +685,18 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
             } finally {
                 lock.lock();
             }
-            for (InetSocketAddress address : addresses) addressList.add(new PeerAddress(address));
+            for (InetSocketAddress address : addresses) {
+                if (address != null) {
+                    addressList.add(new PeerAddress(address.getAddress(), address.getPort(), params.protocolVersion));
+                }
+            }
             if (addressList.size() > 0) break;
         }
         for (PeerAddress address : addressList) {
             addInactive(address);
         }
 
-        log.info("Peer discovery took {}msec and returned {} items",
+        log.info("Peer discovery took {} msec and returned {} items",
                 System.currentTimeMillis() - start, addressList.size());
     }
 
@@ -1017,7 +1029,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
      */
     @Nullable
     public Peer connectTo(InetSocketAddress address) {
-        PeerAddress peerAddress = new PeerAddress(address);
+        PeerAddress peerAddress = new PeerAddress(address.getAddress(), address.getPort(), params.protocolVersion);
         backoffMap.put(peerAddress, new ExponentialBackoff(peerBackoffParams));
         return connectTo(peerAddress, true, vConnectTimeoutMillis);
     }
@@ -1046,7 +1058,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         ver.bestHeight = chain == null ? 0 : chain.getBestChainHeight();
         ver.time = Utils.currentTimeSeconds();
 
-        Peer peer = new Peer(params, ver, address, chain, memoryPool, downloadTxDependencies);
+        Peer peer = new Peer(params, ver, address, chain, memoryPool, downloadTxDependencies, this);
         peer.addEventListener(startupListener, Threading.SAME_THREAD);
         peer.setMinProtocolVersion(vMinRequiredProtocolVersion);
         pendingPeers.add(peer);
@@ -1180,7 +1192,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
 
     private void setupPingingForNewPeer(final Peer peer) {
         checkState(lock.isHeldByCurrentThread());
-        if (peer.getPeerVersionMessage().clientVersion < Pong.MIN_PROTOCOL_VERSION)
+        if (!peer.getPeerVersionMessage().isPingPongSupported())
             return;
         if (getPingIntervalMsec() <= 0)
             return;  // Disabled.
@@ -1519,7 +1531,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
                     // We may end up with two threads trying to do this in parallel - the wallet will
                     // ignore whichever one loses the race.
                     try {
-                        wallet.receivePending(transaction, null);
+                        wallet.receivePending(transaction, null, PeerGroup.this);
                     } catch (VerificationException e) {
                         throw new RuntimeException(e);   // Cannot fail to verify a tx we created ourselves.
                     }
@@ -1639,7 +1651,7 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
         // better then we'll settle for the highest we found instead.
         int highestVersion = 0, preferredVersion = 0;
         // If/when PREFERRED_VERSION is not equal to vMinRequiredProtocolVersion, reenable the last test in PeerGroupTest.downloadPeerSelection
-        final int PREFERRED_VERSION = FilteredBlock.MIN_PROTOCOL_VERSION;
+        final int PREFERRED_VERSION = params.getCoinDefinition().getMinBloomProtocolVersion();
         for (Peer peer : candidates) {
             highestVersion = Math.max(peer.getPeerVersionMessage().clientVersion, highestVersion);
             preferredVersion = Math.min(highestVersion, PREFERRED_VERSION);
@@ -1707,4 +1719,13 @@ public class PeerGroup extends AbstractExecutionThreadService implements Transac
             lock.unlock();
         }
     }
+
+    public AbstractBlockChain getBlockChain() {
+        return chain;
+    }
+
+    public NetworkParameters getParams() {
+        return params;
+    }
+
 }

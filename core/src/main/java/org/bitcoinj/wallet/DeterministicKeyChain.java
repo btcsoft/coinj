@@ -16,18 +16,17 @@
 
 package org.bitcoinj.wallet;
 
+import com.google.common.collect.ImmutableList;
+import com.google.protobuf.ByteString;
 import org.bitcoinj.core.BloomFilter;
 import org.bitcoinj.core.ECKey;
 import org.bitcoinj.core.Utils;
 import org.bitcoinj.crypto.*;
 import org.bitcoinj.store.UnreadableWalletException;
 import org.bitcoinj.utils.Threading;
-import com.google.common.collect.ImmutableList;
-import com.google.protobuf.ByteString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongycastle.crypto.params.KeyParameter;
-import org.spongycastle.math.ec.ECPoint;
 
 import javax.annotation.Nullable;
 import java.math.BigInteger;
@@ -145,7 +144,7 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
     private boolean isFollowing;
 
     /**
-     * Generates a new key chain with entropy selected randomly from the given {@link java.security.SecureRandom}
+     * Generates a new key chain with entropy selected randomly from the given {@link SecureRandom}
      * object and the default entropy size.
      */
     public DeterministicKeyChain(SecureRandom random) {
@@ -153,7 +152,7 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
     }
 
     /**
-     * Generates a new key chain with entropy selected randomly from the given {@link java.security.SecureRandom}
+     * Generates a new key chain with entropy selected randomly from the given {@link SecureRandom}
      * object and of the requested size in bits.
      */
     public DeterministicKeyChain(SecureRandom random, int bits) {
@@ -161,7 +160,7 @@ public class DeterministicKeyChain implements EncryptableKeyChain {
     }
 
     /**
-     * Generates a new key chain with entropy selected randomly from the given {@link java.security.SecureRandom}
+     * Generates a new key chain with entropy selected randomly from the given {@link SecureRandom}
      * object and of the requested size in bits.  The derived seed is further protected with a user selected passphrase
      * (see BIP 39).
      */

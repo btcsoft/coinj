@@ -17,13 +17,13 @@
 
 package org.bitcoinj.core;
 
-import org.bitcoinj.crypto.*;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.base.Objects.ToStringHelper;
 import com.google.common.base.Preconditions;
 import com.google.common.primitives.UnsignedBytes;
 import org.bitcoin.NativeSecp256k1;
+import org.bitcoinj.crypto.*;
 import org.bitcoinj.wallet.Protos;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -102,7 +102,7 @@ public class ECKey implements EncryptableItem, Serializable {
         }
     };
 
-    /** Compares pub key bytes using {@link com.google.common.primitives.UnsignedBytes#lexicographicalComparator()} */
+    /** Compares pub key bytes using {@link UnsignedBytes#lexicographicalComparator()} */
     public static final Comparator<ECKey> PUBKEY_COMPARATOR = new Comparator<ECKey>() {
         private Comparator<byte[]> comparator = UnsignedBytes.lexicographicalComparator();
 
@@ -458,7 +458,7 @@ public class ECKey implements EncryptableItem, Serializable {
      * Gets the private key in the form of an integer field element. The public key is derived by performing EC
      * point addition this number of times (i.e. point multiplying).
      *
-     * @throws java.lang.IllegalStateException if the private key bytes are not available.
+     * @throws IllegalStateException if the private key bytes are not available.
      */
     public BigInteger getPrivKey() {
         if (priv == null)
@@ -639,7 +639,7 @@ public class ECKey implements EncryptableItem, Serializable {
 
     /**
      * <p>Verifies the given ECDSA signature against the message bytes using the public key bytes.</p>
-     * 
+     *
      * <p>When using native ECDSA verification, data must be 32 bytes, and no element may be
      * larger than 520 bytes.</p>
      *
@@ -759,8 +759,8 @@ public class ECKey implements EncryptableItem, Serializable {
      * @throws IllegalStateException if this ECKey does not have the private part.
      * @throws KeyCrypterException if this ECKey is encrypted and no AESKey is provided or it does not decrypt the ECKey.
      */
-    public String signMessage(String message) throws KeyCrypterException {
-        return signMessage(message, null);
+    public String signMessage(String message, NetworkParameters params) throws KeyCrypterException {
+        return signMessage(message, params, null);
     }
 
     /**
@@ -770,8 +770,12 @@ public class ECKey implements EncryptableItem, Serializable {
      * @throws IllegalStateException if this ECKey does not have the private part.
      * @throws KeyCrypterException if this ECKey is encrypted and no AESKey is provided or it does not decrypt the ECKey.
      */
-    public String signMessage(String message, @Nullable KeyParameter aesKey) throws KeyCrypterException {
-        byte[] data = Utils.formatMessageForSigning(message);
+    public String signMessage(String message, NetworkParameters params, @Nullable KeyParameter aesKey) throws KeyCrypterException {
+        return signMessage(message, params.signedMessageHeaderBytes, aesKey);
+    }
+
+    public String signMessage(String message, byte[] magicMessage, @Nullable KeyParameter aesKey) throws KeyCrypterException {
+        byte[] data = Utils.formatMessageForSigning(message, magicMessage);
         Sha256Hash hash = Sha256Hash.createDouble(data);
         ECDSASignature sig = sign(hash, aesKey);
         // Now we have to work backwards to figure out the recId needed to recover the signature.
@@ -804,7 +808,15 @@ public class ECKey implements EncryptableItem, Serializable {
      * @param signatureBase64 The Bitcoin-format message signature in base64
      * @throws SignatureException If the public key could not be recovered or if there was a signature format error.
      */
-    public static ECKey signedMessageToKey(String message, String signatureBase64) throws SignatureException {
+    public static ECKey signedMessageToKey(String message, String signatureBase64, NetworkParameters params) throws SignatureException {
+        return signedMessageToKey(message, signatureBase64, params.signedMessageHeaderBytes);
+    }
+
+    public static ECKey signedMessageToKey(String message, byte[] signatureEncoded, NetworkParameters params) throws SignatureException {
+        return signedMessageToKey(message, signatureEncoded, params.signedMessageHeaderBytes);
+    }
+
+    public static ECKey signedMessageToKey(String message, String signatureBase64, byte[] magicMessage) throws SignatureException {
         byte[] signatureEncoded;
         try {
             signatureEncoded = Base64.decode(signatureBase64);
@@ -812,6 +824,10 @@ public class ECKey implements EncryptableItem, Serializable {
             // This is what you get back from Bouncy Castle if base64 doesn't decode :(
             throw new SignatureException("Could not decode base64", e);
         }
+        return signedMessageToKey(message, signatureEncoded, magicMessage);
+    }
+
+    public static ECKey signedMessageToKey(String message, byte[] signatureEncoded, byte[] magicMessage) throws SignatureException {
         // Parse the signature bytes into r/s and the selector value.
         if (signatureEncoded.length < 65)
             throw new SignatureException("Signature truncated, expected 65 bytes and got " + signatureEncoded.length);
@@ -823,7 +839,7 @@ public class ECKey implements EncryptableItem, Serializable {
         BigInteger r = new BigInteger(1, Arrays.copyOfRange(signatureEncoded, 1, 33));
         BigInteger s = new BigInteger(1, Arrays.copyOfRange(signatureEncoded, 33, 65));
         ECDSASignature sig = new ECDSASignature(r, s);
-        byte[] messageBytes = Utils.formatMessageForSigning(message);
+        byte[] messageBytes = Utils.formatMessageForSigning(message, magicMessage);
         // Note that the C++ code doesn't actually seem to specify any character encoding. Presumably it's whatever
         // JSON-SPIRIT hands back. Assume UTF-8 for now.
         Sha256Hash messageHash = Sha256Hash.createDouble(messageBytes);
@@ -840,11 +856,11 @@ public class ECKey implements EncryptableItem, Serializable {
     }
 
     /**
-     * Convenience wrapper around {@link ECKey#signedMessageToKey(String, String)}. If the key derived from the
+     * Convenience wrapper around {@link ECKey#signedMessageToKey(String, String, org.bitcoinj.core.NetworkParameters)}. If the key derived from the
      * signature is not the same as this one, throws a SignatureException.
      */
-    public void verifyMessage(String message, String signatureBase64) throws SignatureException {
-        ECKey key = ECKey.signedMessageToKey(message, signatureBase64);
+    public void verifyMessage(String message, String signatureBase64, NetworkParameters params) throws SignatureException {
+        ECKey key = ECKey.signedMessageToKey(message, signatureBase64, params);
         if (!key.pub.equals(pub))
             throw new SignatureException("Signature did not match for message");
     }

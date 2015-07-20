@@ -14,22 +14,22 @@
 
 package org.bitcoinj.protocols.payments;
 
-import org.bitcoinj.core.*;
-import org.bitcoinj.crypto.TrustStoreLoader;
-import org.bitcoinj.params.MainNetParams;
-import org.bitcoinj.protocols.payments.PaymentProtocol.PkiVerificationData;
-import org.bitcoinj.uri.BitcoinURI;
-import org.bitcoinj.utils.Threading;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.protobuf.InvalidProtocolBufferException;
-
 import org.bitcoin.protocols.payments.Protos;
+import org.bitcoinj.core.*;
+import org.bitcoinj.crypto.TrustStoreLoader;
+import org.bitcoinj.params.MainNetParams;
+import org.bitcoinj.protocols.payments.PaymentProtocol.PkiVerificationData;
+import org.bitcoinj.uri.CoinURI;
+import org.bitcoinj.utils.Threading;
+import org.coinj.api.CoinDefinition;
 
 import javax.annotation.Nullable;
-
-import java.io.*;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.net.*;
 import java.security.KeyStoreException;
 import java.util.ArrayList;
@@ -43,7 +43,7 @@ import java.util.concurrent.Callable;
  * <p>A PaymentSession can be initialized from one of the following:</p>
  *
  * <ul>
- * <li>A {@link BitcoinURI} object that conforms to BIP 0072</li>
+ * <li>A {@link CoinURI} object that conforms to BIP 0072</li>
  * <li>A url where the {@link Protos.PaymentRequest} can be fetched</li>
  * <li>Directly with a {@link Protos.PaymentRequest} object</li>
  * </ul>
@@ -70,7 +70,7 @@ public class PaymentSession {
     private final TrustStoreLoader trustStoreLoader;
     private Protos.PaymentRequest paymentRequest;
     private Protos.PaymentDetails paymentDetails;
-    private Coin totalValue = Coin.ZERO;
+    private Coin totalValue;
 
     /**
      * Stores the calculated PKI verification data, or null if none is available.
@@ -87,8 +87,8 @@ public class PaymentSession {
      * the signature provided by the payment request. An exception is thrown by the future if the signature cannot
      * be verified.</p>
      */
-    public static ListenableFuture<PaymentSession> createFromBitcoinUri(final BitcoinURI uri) throws PaymentProtocolException {
-        return createFromBitcoinUri(uri, true, null);
+    public static ListenableFuture<PaymentSession> createFromBitcoinUri(final CoinURI uri, final CoinDefinition def) throws PaymentProtocolException {
+        return createFromBitcoinUri(uri, def, true, null);
     }
 
     /**
@@ -99,9 +99,9 @@ public class PaymentSession {
      * be used to verify the signature provided by the payment request. An exception is thrown by the future if the
      * signature cannot be verified.
      */
-    public static ListenableFuture<PaymentSession> createFromBitcoinUri(final BitcoinURI uri, final boolean verifyPki)
+    public static ListenableFuture<PaymentSession> createFromBitcoinUri(final CoinURI uri,final CoinDefinition def, final boolean verifyPki)
             throws PaymentProtocolException {
-        return createFromBitcoinUri(uri, verifyPki, null);
+        return createFromBitcoinUri(uri, def, verifyPki, null);
     }
 
     /**
@@ -113,13 +113,17 @@ public class PaymentSession {
      * signature cannot be verified.
      * If trustStoreLoader is null, the system default trust store is used.
      */
-    public static ListenableFuture<PaymentSession> createFromBitcoinUri(final BitcoinURI uri, final boolean verifyPki, @Nullable final TrustStoreLoader trustStoreLoader)
-            throws PaymentProtocolException {
+    public static ListenableFuture<PaymentSession> createFromBitcoinUri(
+            final CoinURI uri,
+            final CoinDefinition def,
+            final boolean verifyPki,
+            @Nullable final TrustStoreLoader trustStoreLoader) throws PaymentProtocolException
+    {
         String url = uri.getPaymentRequestUrl();
         if (url == null)
             throw new PaymentProtocolException.InvalidPaymentRequestURL("No payment request URL (r= parameter) in BitcoinURI " + uri);
         try {
-            return fetchPaymentRequest(new URI(url), verifyPki, trustStoreLoader);
+            return fetchPaymentRequest(new URI(url), def, verifyPki, trustStoreLoader);
         } catch (URISyntaxException e) {
             throw new PaymentProtocolException.InvalidPaymentRequestURL(e);
         }
@@ -132,8 +136,8 @@ public class PaymentSession {
      * be used to verify the signature provided by the payment request. An exception is thrown by the future if the
      * signature cannot be verified.
      */
-    public static ListenableFuture<PaymentSession> createFromUrl(final String url) throws PaymentProtocolException {
-        return createFromUrl(url, true, null);
+    public static ListenableFuture<PaymentSession> createFromUrl(final String url, CoinDefinition def) throws PaymentProtocolException {
+        return createFromUrl(url, def, true, null);
     }
 
     /**
@@ -143,9 +147,9 @@ public class PaymentSession {
      * be used to verify the signature provided by the payment request. An exception is thrown by the future if the
      * signature cannot be verified.
      */
-    public static ListenableFuture<PaymentSession> createFromUrl(final String url, final boolean verifyPki)
+    public static ListenableFuture<PaymentSession> createFromUrl(final String url, CoinDefinition def, final boolean verifyPki)
             throws PaymentProtocolException {
-        return createFromUrl(url, verifyPki, null);
+        return createFromUrl(url, def, verifyPki, null);
     }
 
     /**
@@ -156,23 +160,28 @@ public class PaymentSession {
      * signature cannot be verified.
      * If trustStoreLoader is null, the system default trust store is used.
      */
-    public static ListenableFuture<PaymentSession> createFromUrl(final String url, final boolean verifyPki, @Nullable final TrustStoreLoader trustStoreLoader)
+    public static ListenableFuture<PaymentSession> createFromUrl(final String url, CoinDefinition def, final boolean verifyPki, @Nullable final TrustStoreLoader trustStoreLoader)
             throws PaymentProtocolException {
         if (url == null)
             throw new PaymentProtocolException.InvalidPaymentRequestURL("null paymentRequestUrl");
         try {
-            return fetchPaymentRequest(new URI(url), verifyPki, trustStoreLoader);
+            return fetchPaymentRequest(new URI(url), def, verifyPki, trustStoreLoader);
         } catch(URISyntaxException e) {
             throw new PaymentProtocolException.InvalidPaymentRequestURL(e);
         }
     }
 
-    private static ListenableFuture<PaymentSession> fetchPaymentRequest(final URI uri, final boolean verifyPki, @Nullable final TrustStoreLoader trustStoreLoader) {
+    private static ListenableFuture<PaymentSession> fetchPaymentRequest(
+            final URI uri,
+            final CoinDefinition def,
+            final boolean verifyPki,
+            @Nullable final TrustStoreLoader trustStoreLoader
+    ) {
         return executor.submit(new Callable<PaymentSession>() {
             @Override
             public PaymentSession call() throws Exception {
                 HttpURLConnection connection = (HttpURLConnection)uri.toURL().openConnection();
-                connection.setRequestProperty("Accept", PaymentProtocol.MIMETYPE_PAYMENTREQUEST);
+                connection.setRequestProperty("Accept", "application/" + def.getName() + "-paymentrequest");
                 connection.setUseCaches(false);
                 Protos.PaymentRequest paymentRequest = Protos.PaymentRequest.parseFrom(connection.getInputStream());
                 return new PaymentSession(paymentRequest, verifyPki, trustStoreLoader);
@@ -316,6 +325,7 @@ public class PaymentSession {
         Protos.Payment payment = getPayment(txns, refundAddr, memo);
         if (payment == null)
             return null;
+        final CoinDefinition def = txns.get(0).getParams().getCoinDefinition();
         if (isExpired())
             throw new PaymentProtocolException.Expired("PaymentRequest is expired");
         URL url;
@@ -324,7 +334,7 @@ public class PaymentSession {
         } catch (MalformedURLException e) {
             throw new PaymentProtocolException.InvalidPaymentURL(e);
         }
-        return sendPayment(url, payment);
+        return sendPayment(url, def, payment);
     }
 
     /**
@@ -348,14 +358,15 @@ public class PaymentSession {
     }
 
     @VisibleForTesting
-    protected ListenableFuture<PaymentProtocol.Ack> sendPayment(final URL url, final Protos.Payment payment) {
+    protected ListenableFuture<PaymentProtocol.Ack> sendPayment(final URL url, final CoinDefinition def, final Protos.Payment payment) {
         return executor.submit(new Callable<PaymentProtocol.Ack>() {
             @Override
             public PaymentProtocol.Ack call() throws Exception {
+                final String name = def.getName();
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                 connection.setRequestMethod("POST");
-                connection.setRequestProperty("Content-Type", PaymentProtocol.MIMETYPE_PAYMENT);
-                connection.setRequestProperty("Accept", PaymentProtocol.MIMETYPE_PAYMENTACK);
+                connection.setRequestProperty("Content-Type", "application/" + name + "-payment");
+                connection.setRequestProperty("Accept", "application/" + name + "-paymentack");
                 connection.setRequestProperty("Content-Length", Integer.toString(payment.getSerializedSize()));
                 connection.setUseCaches(false);
                 connection.setDoInput(true);
@@ -392,6 +403,7 @@ public class PaymentSession {
                 params = NetworkParameters.fromPmtProtocolID(paymentDetails.getNetwork());
             if (params == null)
                 throw new PaymentProtocolException.InvalidNetwork("Invalid network " + paymentDetails.getNetwork());
+            totalValue = Coin.zero(params.getCoinDefinition());
             if (paymentDetails.getOutputsCount() < 1)
                 throw new PaymentProtocolException.InvalidOutputs("No outputs");
             for (Protos.Output output : paymentDetails.getOutputsList()) {
@@ -400,8 +412,9 @@ public class PaymentSession {
             }
             // This won't ever happen in practice. It would only happen if the user provided outputs
             // that are obviously invalid. Still, we don't want to silently overflow.
-            if (totalValue.compareTo(NetworkParameters.MAX_MONEY) > 0)
+            if (totalValue.compareTo(totalValue.getMaxMoney()) > 0)
                 throw new PaymentProtocolException.InvalidOutputs("The outputs are way too big.");
+
         } catch (InvalidProtocolBufferException e) {
             throw new PaymentProtocolException(e);
         }

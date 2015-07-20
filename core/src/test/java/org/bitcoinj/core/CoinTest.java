@@ -17,7 +17,6 @@
 package org.bitcoinj.core;
 
 import static org.bitcoinj.core.Coin.*;
-import static org.bitcoinj.core.NetworkParameters.MAX_MONEY;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -28,6 +27,12 @@ import org.junit.Assert;
 import org.junit.Test;
 
 public class CoinTest {
+
+    private static final Coin COIN = Coin.coin();
+    private static final Coin MAX_MONEY = COIN.getMaxMoney();
+    private static final Coin CENT = COIN.getCent();
+    private static final Coin SATOSHI = COIN.getSatoshi();
+    private static final Coin NEGATIVE_SATOSHI = COIN.getNegativeSatoshi();
 
     @Test
     public void testParseCoin() {
@@ -79,15 +84,16 @@ public class CoinTest {
 
     @Test
     public void testOperators() {
+        final Coin zero = Coin.zero();
         assertTrue(SATOSHI.isPositive());
         assertFalse(SATOSHI.isNegative());
         assertFalse(SATOSHI.isZero());
         assertFalse(NEGATIVE_SATOSHI.isPositive());
         assertTrue(NEGATIVE_SATOSHI.isNegative());
         assertFalse(NEGATIVE_SATOSHI.isZero());
-        assertFalse(ZERO.isPositive());
-        assertFalse(ZERO.isNegative());
-        assertTrue(ZERO.isZero());
+        assertFalse(zero.isPositive());
+        assertFalse(zero.isNegative());
+        assertTrue(zero.isZero());
 
         assertTrue(valueOf(2).isGreaterThan(valueOf(1)));
         assertFalse(valueOf(2).isGreaterThan(valueOf(2)));

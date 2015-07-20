@@ -70,7 +70,8 @@ public class CoinbaseBlockTest {
         wallet.importKey(miningKey);
 
         // Initial balance should be zero by construction.
-        assertEquals(Coin.ZERO, wallet.getBalance());
+        final Coin coin = Coin.zero(params.getCoinDefinition());
+        assertEquals(coin, wallet.getBalance());
 
         // Give the wallet the first transaction in the block - this is the coinbase tx.
         List<Transaction> transactions = block.getTransactions();
@@ -79,7 +80,7 @@ public class CoinbaseBlockTest {
 
         // Coinbase transaction should have been received successfully but be unavailable to spend (too young).
         assertEquals(BALANCE_AFTER_BLOCK, wallet.getBalance(BalanceType.ESTIMATED));
-        assertEquals(Coin.ZERO, wallet.getBalance(BalanceType.AVAILABLE));
+        assertEquals(coin, wallet.getBalance(BalanceType.AVAILABLE));
     }
 
     /**

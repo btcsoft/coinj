@@ -132,7 +132,7 @@ public class FakeTxBuilder {
      */
     public static DoubleSpends createFakeDoubleSpendTxns(NetworkParameters params, Address to) {
         DoubleSpends doubleSpends = new DoubleSpends();
-        Coin value = COIN;
+        Coin value = coin(params.getCoinDefinition());
         Address someBadGuy = new ECKey().toAddress(params);
 
         doubleSpends.t1 = new Transaction(params);

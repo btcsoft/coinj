@@ -19,6 +19,8 @@ package org.bitcoinj.core;
 
 import org.bitcoinj.params.Networks;
 import org.bitcoinj.script.Script;
+import org.coinj.api.CoinDefinition;
+import org.coinj.api.CoinLocator;
 
 import javax.annotation.Nullable;
 
@@ -37,6 +39,9 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * type) can contain a hash of a script instead.</p>
  */
 public class Address extends VersionedChecksummedBytes {
+
+    private static final long serialVersionUID = -6162063926801250961L;
+
     /**
      * An address is a RIPEMD160 hash of a public key, therefore is always 160 bits or 20 bytes.
      */
@@ -103,10 +108,12 @@ public class Address extends VersionedChecksummedBytes {
             this.params = params;
         } else {
             NetworkParameters paramsFound = null;
-            for (NetworkParameters p : Networks.get()) {
-                if (isAcceptableVersion(p, version)) {
-                    paramsFound = p;
-                    break;
+            outer: for (final CoinDefinition def : CoinLocator.getRegisteredCoins()) {
+                for (NetworkParameters p : Networks.get(def)) {
+                    if (isAcceptableVersion(p, version)) {
+                        paramsFound = p;
+                        break outer;
+                    }
                 }
             }
             if (paramsFound == null)
@@ -168,4 +175,5 @@ public class Address extends VersionedChecksummedBytes {
         }
         return false;
     }
+
 }

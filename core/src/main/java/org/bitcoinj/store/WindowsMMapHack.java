@@ -1,9 +1,9 @@
 package org.bitcoinj.store;
 
-import sun.misc.*;
-import sun.nio.ch.*;
+import sun.misc.Cleaner;
+import sun.nio.ch.DirectBuffer;
 
-import java.nio.*;
+import java.nio.MappedByteBuffer;
 
 /**
  * <p>This class knows how to force an mmap'd ByteBuffer to reliquish its file handles before it becomes garbage collected,

@@ -1,5 +1,6 @@
 /**
  * Copyright 2011 Google Inc.
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,12 +33,8 @@ import java.net.UnknownHostException;
  * to ensure it will be used for each new connection.
  */
 public class VersionMessage extends Message {
-    private static final long serialVersionUID = 7313594258967483180L;
 
-    /** A services flag that denotes whether the peer has a copy of the block chain or not. */
-    public static final int NODE_NETWORK = 1;
-    /** A flag that denotes whether the peer supports the getutxos message or not. */
-    public static final int NODE_GETUTXOS = 2;
+    private static final long serialVersionUID = 7313594258967483180L;
 
     /**
      * The version number of the protocol spoken.
@@ -75,9 +72,7 @@ public class VersionMessage extends Message {
     public boolean relayTxesBeforeFilter;
 
     /** The version of this library release, as a string. */
-    public static final String BITCOINJ_VERSION = "0.12.3";
-    /** The value that is prepended to the subVer field of this application. */
-    public static final String LIBRARY_SUBVER = "/bitcoinj:" + BITCOINJ_VERSION + "/";
+    public static final String COINJ_VERSION = "0.12.3";
 
     public VersionMessage(NetworkParameters params, byte[] payload) throws ProtocolException {
         super(params, payload, 0);
@@ -89,7 +84,7 @@ public class VersionMessage extends Message {
     
     public VersionMessage(NetworkParameters params, int newBestHeight) {
         super(params);
-        clientVersion = NetworkParameters.PROTOCOL_VERSION;
+        clientVersion = params.protocolVersion;
         localServices = 0;
         time = System.currentTimeMillis() / 1000;
         // Note that the official client doesn't do anything with these, and finding out your own external IP address
@@ -103,7 +98,7 @@ public class VersionMessage extends Message {
         } catch (UnknownHostException e) {
             throw new RuntimeException(e);  // Cannot happen (illegal IP length).
         }
-        subVer = LIBRARY_SUBVER;
+        subVer = "/" + params.getCoinDefinition().getName() + "j:" + COINJ_VERSION + "/";
         bestHeight = newBestHeight;
         relayTxesBeforeFilter = true;
 
@@ -192,7 +187,7 @@ public class VersionMessage extends Message {
      * or if it's running in client mode (only has the headers).
      */
     public boolean hasBlockChain() {
-        return (localServices & NODE_NETWORK) == NODE_NETWORK;
+        return params.getCoinDefinition().hasBlockChain(this);
     }
 
     @Override
@@ -299,7 +294,7 @@ public class VersionMessage extends Message {
      * Returns true if the clientVersion field is >= Pong.MIN_PROTOCOL_VERSION. If it is then ping() is usable.
      */
     public boolean isPingPongSupported() {
-        return clientVersion >= Pong.MIN_PROTOCOL_VERSION;
+        return params.getCoinDefinition().isPingPongSupported(this);
     }
 
     /**
@@ -307,12 +302,36 @@ public class VersionMessage extends Message {
      * is available and the memory pool of the remote peer will be queried when the downloadData property is true.
      */
     public boolean isBloomFilteringSupported() {
-        return clientVersion >= FilteredBlock.MIN_PROTOCOL_VERSION;
+        return params.getCoinDefinition().isBloomFilteringSupported(this);
     }
 
     /** Returns true if the protocol version and service bits both indicate support for the getutxos message. */
     public boolean isGetUTXOsSupported() {
-        return clientVersion >= GetUTXOsMessage.MIN_PROTOCOL_VERSION &&
-                (localServices & NODE_GETUTXOS) == NODE_GETUTXOS;
+        return params.getCoinDefinition().isGetUTXOsSupported(this);
     }
+
+    public long getBestHeight() {
+        return bestHeight;
+    }
+
+    public int getClientVersion() {
+        return clientVersion;
+    }
+
+    public long getLocalServices() {
+        return localServices;
+    }
+
+    public long getTime() {
+        return time;
+    }
+
+    public String getSubVer() {
+        return subVer;
+    }
+
+    public boolean getRelayTxsBeforeFilter() {
+        return relayTxesBeforeFilter;
+    }
+
 }

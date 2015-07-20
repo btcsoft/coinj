@@ -1,6 +1,7 @@
 /**
  * Copyright 2011 Google Inc.
  * Copyright 2014 Andreas Schildbach
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,7 +34,7 @@ import static com.google.common.base.Preconditions.checkState;
  */
 public abstract class Message implements Serializable {
     private static final Logger log = LoggerFactory.getLogger(Message.class);
-    private static final long serialVersionUID = -3561053461717079135L;
+    private static final long serialVersionUID = 4073145606797804364L;
 
     public static final int MAX_SIZE = 0x02000000; // 32MB
 
@@ -143,11 +144,11 @@ public abstract class Message implements Serializable {
     }
 
     Message(NetworkParameters params, byte[] payload, int offset) throws ProtocolException {
-        this(params, payload, offset, NetworkParameters.PROTOCOL_VERSION, false, false, UNKNOWN_LENGTH);
+        this(params, payload, offset, params.protocolVersion, false, false, UNKNOWN_LENGTH);
     }
 
     Message(NetworkParameters params, byte[] payload, int offset, boolean parseLazy, boolean parseRetain, int length) throws ProtocolException {
-        this(params, payload, offset, NetworkParameters.PROTOCOL_VERSION, parseLazy, parseRetain, length);
+        this(params, payload, offset, params.protocolVersion, parseLazy, parseRetain, length);
     }
 
     // These methods handle the serialization/deserialization using the custom Bitcoin protocol.
@@ -166,7 +167,6 @@ public abstract class Message implements Serializable {
      * within the parseLite() method OR the parse() method.  The overriding requirement is that length
      * must be set to non UNKNOWN_MESSAGE value by the time the constructor exits.
      *
-     * @return
      * @throws ProtocolException
      */
     protected abstract void parseLite() throws ProtocolException;
@@ -408,6 +408,10 @@ public abstract class Message implements Serializable {
     }
 
     Sha256Hash readHash() throws ProtocolException {
+        return new Sha256Hash(readHashAsBytes());
+    }
+
+    byte[] readHashAsBytes() throws ProtocolException {
         try {
             byte[] hash = new byte[32];
             System.arraycopy(payload, cursor, hash, 0, 32);
@@ -415,7 +419,7 @@ public abstract class Message implements Serializable {
             // Not the most efficient way to do this but the clearest.
             hash = Utils.reverseBytes(hash);
             cursor += 32;
-            return new Sha256Hash(hash);
+            return hash;
         } catch (IndexOutOfBoundsException e) {
             throw new ProtocolException(e);
         }

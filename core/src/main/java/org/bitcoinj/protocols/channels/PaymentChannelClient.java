@@ -17,9 +17,6 @@
 
 package org.bitcoinj.protocols.channels;
 
-import org.bitcoinj.core.*;
-import org.bitcoinj.protocols.channels.PaymentChannelCloseException.CloseReason;
-import org.bitcoinj.utils.Threading;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -27,10 +24,12 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.google.protobuf.ByteString;
 import net.jcip.annotations.GuardedBy;
 import org.bitcoin.paymentchannel.Protos;
+import org.bitcoinj.core.*;
+import org.bitcoinj.protocols.channels.PaymentChannelCloseException.CloseReason;
+import org.bitcoinj.utils.Threading;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
-import java.util.Date;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static com.google.common.base.Preconditions.checkNotNull;
@@ -159,10 +158,10 @@ public class PaymentChannelClient implements IPaymentChannelClient {
         this.conn = checkNotNull(conn);
     }
 
-    /** 
+    /**
      * <p>Returns the amount of satoshis missing when a server requests too much value.</p>
      *
-     * <p>When InsufficientMoneyException is thrown due to the server requesting too much value, an instance of 
+     * <p>When InsufficientMoneyException is thrown due to the server requesting too much value, an instance of
      * PaymentChannelClient needs access to how many satoshis are missing.</p>
      */
     public Coin getMissing() {
@@ -193,7 +192,7 @@ public class PaymentChannelClient implements IPaymentChannelClient {
 
         // For now we require a hard-coded value. In future this will have to get more complex and dynamic as the fees
         // start to float.
-        final long MIN_PAYMENT = Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.value;
+        final long MIN_PAYMENT = wallet.getParams().getCoinDefinition().getDefaultMinTransactionFee();
         if (initiate.getMinPayment() != MIN_PAYMENT) {
             log.error("Server requested a min payment of {} but we expected {}", initiate.getMinPayment(), MIN_PAYMENT);
             errorBuilder.setCode(Protos.Error.ErrorCode.MIN_PAYMENT_TOO_LARGE);

@@ -47,11 +47,11 @@ import org.bitcoinj.core.Monetary;
 public final class MonetaryFormat {
 
     /** Standard format for the BTC denomination. */
-    public static final MonetaryFormat BTC = new MonetaryFormat().shift(0).minDecimals(2).repeatOptionalDecimals(2, 3);
+    public static final MonetaryFormat BTC = new MonetaryFormat().shift(0).minDecimals(2).repeatOptionalDecimals(2, 3).noCode();
     /** Standard format for the mBTC denomination. */
-    public static final MonetaryFormat MBTC = new MonetaryFormat().shift(3).minDecimals(2).optionalDecimals(2);
+    public static final MonetaryFormat MBTC = new MonetaryFormat().shift(3).minDecimals(2).optionalDecimals(2).noCode();
     /** Standard format for the µBTC denomination. */
-    public static final MonetaryFormat UBTC = new MonetaryFormat().shift(6).minDecimals(0).optionalDecimals(2);
+    public static final MonetaryFormat UBTC = new MonetaryFormat().shift(6).minDecimals(0).optionalDecimals(2).noCode();
     /** Standard format for fiat amounts. */
     public static final MonetaryFormat FIAT = new MonetaryFormat().shift(0).minDecimals(2).repeatOptionalDecimals(2, 1);
     /** Currency code for base 1 Bitcoin. */
@@ -60,6 +60,10 @@ public final class MonetaryFormat {
     public static final String CODE_MBTC = "mBTC";
     /** Currency code for base 1/1000000 Bitcoin. */
     public static final String CODE_UBTC = "µBTC";
+
+    private static final String CODE_M = "m";
+    private static final String CODE_U = "µ";
+
 
     private final char negativeSign;
     private final char positiveSign;
@@ -227,7 +231,7 @@ public final class MonetaryFormat {
      * Configure currency code for given decimal separator shift. This configuration is not relevant for parsing.
      * 
      * @param codeShift
-     *            decimal separator shift, see {@link #shift()}
+     *            decimal separator shift, see {@link #shift(int)}
      * @param code
      *            currency code
      */
@@ -239,6 +243,16 @@ public final class MonetaryFormat {
         codes.put(codeShift, code);
         return new MonetaryFormat(negativeSign, positiveSign, zeroDigit, decimalMark, minDecimals, decimalGroups,
                 shift, roundingMode, codes, codeSeparator, codePrefixed);
+    }
+
+    /**
+     * Configure currency code for all decimal separator shift. This configuration is not relevant for parsing.
+     *
+     * @param code
+     *            currency code
+     */
+    public MonetaryFormat code(String code) {
+        return code(0, code).code(3, CODE_M + code).code(6, CODE_U + code);
     }
 
     /**
@@ -399,7 +413,7 @@ public final class MonetaryFormat {
     }
 
     /**
-     * Parse a human readable fiat value to a {@link org.bitcoinj.core.Fiat} instance.
+     * Parse a human readable fiat value to a {@link org.bitcoinj.utils.Fiat} instance.
      * 
      * @throws NumberFormatException
      *             if the string cannot be parsed for some reason

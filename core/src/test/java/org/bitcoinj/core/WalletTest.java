@@ -17,6 +17,10 @@
 
 package org.bitcoinj.core;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.protobuf.ByteString;
 import org.bitcoinj.core.Wallet.SendRequest;
 import org.bitcoinj.crypto.*;
 import org.bitcoinj.script.Script;
@@ -33,12 +37,8 @@ import org.bitcoinj.utils.ExchangeRate;
 import org.bitcoinj.utils.Fiat;
 import org.bitcoinj.utils.Threading;
 import org.bitcoinj.wallet.*;
-import org.bitcoinj.wallet.WalletTransaction.Pool;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.protobuf.ByteString;
 import org.bitcoinj.wallet.Protos.Wallet.EncryptionType;
+import org.bitcoinj.wallet.WalletTransaction.Pool;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -57,10 +57,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.bitcoinj.core.Coin.*;
 import static org.bitcoinj.core.Utils.HEX;
 import static org.bitcoinj.testing.FakeTxBuilder.*;
-import static com.google.common.base.Preconditions.checkNotNull;
 import static org.junit.Assert.*;
 
 public class WalletTest extends TestWithWallet {
@@ -212,7 +212,7 @@ public class WalletTest extends TestWithWallet {
 
         Coin v2 = valueOf(0, 50);
         SendRequest req = SendRequest.to(destination, v2);
-        req.fee = CENT;
+        req.fee = cent;
         wallet.completeTx(req);
 
         Transaction t2 = req.tx;
@@ -263,7 +263,7 @@ public class WalletTest extends TestWithWallet {
         // Force selection of the incoming coin so that we can spend it
         req.coinSelector = new TestCoinSelector();
 
-        req.fee = CENT;
+        req.fee = cent;
         wallet.completeTx(req);
         wallet.commitTx(req.tx);
 
@@ -281,7 +281,7 @@ public class WalletTest extends TestWithWallet {
         assertEquals("Wrong number of PENDING.5", 3, wallet.getPoolSize(WalletTransaction.Pool.PENDING));
         assertEquals("Wrong number of UNSPENT.5", 0, wallet.getPoolSize(WalletTransaction.Pool.UNSPENT));
         assertEquals("Wrong number of ALL.5", 4, wallet.getTransactions(true).size());
-        assertEquals(ZERO, wallet.getBalance(Wallet.BalanceType.ESTIMATED));
+        assertEquals(zero, wallet.getBalance(Wallet.BalanceType.ESTIMATED));
     }
 
     private void basicSpendingCommon(Wallet wallet, Address toAddress, Address destination, boolean testEncryption) throws Exception {
@@ -305,7 +305,7 @@ public class WalletTest extends TestWithWallet {
         // Prepare to send.
         Coin v2 = valueOf(0, 50);
         req = Wallet.SendRequest.to(destination, v2);
-        req.fee = CENT;
+        req.fee = cent;
 
         if (testEncryption) {
             // Try to create a send with a fee but no password (this should fail).
@@ -321,7 +321,7 @@ public class WalletTest extends TestWithWallet {
             // Try to create a send with a fee but the wrong password (this should fail).
             req = Wallet.SendRequest.to(destination, v2);
             req.aesKey = wrongAesKey;
-            req.fee = CENT;
+            req.fee = cent;
             req.ensureMinRequiredFee = false;
 
             try {
@@ -337,7 +337,7 @@ public class WalletTest extends TestWithWallet {
             // Create a send with a fee with the correct password (this should succeed).
             req = Wallet.SendRequest.to(destination, v2);
             req.aesKey = aesKey;
-            req.fee = CENT;
+            req.fee = cent;
             req.ensureMinRequiredFee = false;
         }
 
@@ -363,7 +363,7 @@ public class WalletTest extends TestWithWallet {
     }
 
     private void receiveATransaction(Wallet wallet, Address toAddress) throws Exception {
-        receiveATransactionAmount(wallet, toAddress, COIN);
+        receiveATransactionAmount(wallet, toAddress, coin);
     }
 
     private void receiveATransactionAmount(Wallet wallet, Address toAddress, Coin amount) {
@@ -376,7 +376,7 @@ public class WalletTest extends TestWithWallet {
         Threading.waitForUserCode();
         final ListenableFuture<Transaction> depthFuture = t1.getConfidence().getDepthFuture(1);
         assertFalse(depthFuture.isDone());
-        assertEquals(ZERO, wallet.getBalance());
+        assertEquals(zero, wallet.getBalance());
         assertEquals(amount, wallet.getBalance(Wallet.BalanceType.ESTIMATED));
         assertFalse(availFuture.isDone());
         // Our estimated balance has reached the requested level.
@@ -414,8 +414,8 @@ public class WalletTest extends TestWithWallet {
             }
         });
 
-        t.getConfidence().markBroadcastBy(new PeerAddress(InetAddress.getByAddress(new byte[]{1,2,3,4})));
-        t.getConfidence().markBroadcastBy(new PeerAddress(InetAddress.getByAddress(new byte[]{10,2,3,4})));
+        t.getConfidence().markBroadcastBy(new PeerAddress(InetAddress.getByAddress(new byte[]{1, 2,3,4}), params.port, params.protocolVersion));
+        t.getConfidence().markBroadcastBy(new PeerAddress(InetAddress.getByAddress(new byte[]{10,2,3,4}), params.port, params.protocolVersion));
         wallet.commitTx(t);
         Threading.waitForUserCode();
         assertEquals(1, wallet.getPoolSize(WalletTransaction.Pool.PENDING));
@@ -490,7 +490,7 @@ public class WalletTest extends TestWithWallet {
     public void sideChain() throws Exception {
         // The wallet receives a coin on the main chain, then on a side chain. Balance is equal to both added together
         // as we assume the side chain tx is pending and will be included shortly.
-        Coin v1 = COIN;
+        Coin v1 = coin;
         sendMoneyToWallet(v1, AbstractBlockChain.NewBlockType.BEST_CHAIN);
         assertEquals(v1, wallet.getBalance());
         assertEquals(1, wallet.getPoolSize(WalletTransaction.Pool.UNSPENT));
@@ -517,7 +517,7 @@ public class WalletTest extends TestWithWallet {
         assertEquals(expected, wallet.getBalance());
 
         // Now spend one coin.
-        Coin v3 = COIN;
+        Coin v3 = coin;
         Transaction spend = wallet.createSend(new ECKey().toAddress(params), v3);
         wallet.commitTx(spend);
         assertEquals(1, wallet.getPoolSize(WalletTransaction.Pool.PENDING));
@@ -573,13 +573,13 @@ public class WalletTest extends TestWithWallet {
         });
 
         // Receive some money.
-        Coin oneCoin = COIN;
+        Coin oneCoin = coin;
         Transaction tx1 = sendMoneyToWallet(oneCoin, AbstractBlockChain.NewBlockType.BEST_CHAIN);
         Threading.waitForUserCode();
         assertEquals(null, txn[1]);  // onCoinsSent not called.
         assertEquals(tx1, confTxns.getFirst());   // onTransactionConfidenceChanged called
         assertEquals(txn[0].getHash(), tx1.getHash());
-        assertEquals(ZERO, bigints[0]);
+        assertEquals(zero, bigints[0]);
         assertEquals(oneCoin, bigints[1]);
         assertEquals(TransactionConfidence.ConfidenceType.BUILDING, tx1.getConfidence().getConfidenceType());
         assertEquals(1, tx1.getConfidence().getAppearedAtChainHeight());
@@ -596,7 +596,7 @@ public class WalletTest extends TestWithWallet {
         assertEquals(null, txn[0]);
         assertEquals(2, confTxns.size());
         assertEquals(txn[1].getHash(), send1.getHash());
-        assertEquals(Coin.COIN, bigints[2]);
+        assertEquals(coin, bigints[2]);
         assertEquals(Coin.valueOf(0, 90), bigints[3]);
         // And we do it again after the catchup.
         Transaction send2 = wallet.createSend(new ECKey().toAddress(params), valueOf(0, 10));
@@ -614,7 +614,7 @@ public class WalletTest extends TestWithWallet {
 
     @Test
     public void balances() throws Exception {
-        Coin nanos = COIN;
+        Coin nanos = coin;
         Transaction tx1 = sendMoneyToWallet(nanos, AbstractBlockChain.NewBlockType.BEST_CHAIN);
         assertEquals(nanos, tx1.getValueSentToMe(wallet, true));
         assertTrue(tx1.getWalletOutputs(wallet).size() >= 1);
@@ -623,14 +623,14 @@ public class WalletTest extends TestWithWallet {
         // Reserialize.
         Transaction send2 = new Transaction(params, send1.bitcoinSerialize());
         assertEquals(nanos, send2.getValueSentFromMe(wallet));
-        assertEquals(ZERO.subtract(valueOf(0, 10)), send2.getValue(wallet));
+        assertEquals(zero.subtract(valueOf(0, 10)), send2.getValue(wallet));
     }
 
     @Test
     public void isConsistent_duplicates() throws Exception {
         // This test ensures that isConsistent catches duplicate transactions, eg, because we submitted the same block
         // twice (this is not allowed).
-        Transaction tx = createFakeTx(params, COIN, myAddress);
+        Transaction tx = createFakeTx(params, coin, myAddress);
         Address someOtherGuy = new ECKey().toAddress(params);
         TransactionOutput output = new TransactionOutput(params, tx, valueOf(0, 5), someOtherGuy);
         tx.addOutput(output);
@@ -650,7 +650,7 @@ public class WalletTest extends TestWithWallet {
     @Test
     public void isConsistent_pools() throws Exception {
         // This test ensures that isConsistent catches transactions that are in incompatible pools.
-        Transaction tx = createFakeTx(params, COIN, myAddress);
+        Transaction tx = createFakeTx(params, coin, myAddress);
         Address someOtherGuy = new ECKey().toAddress(params);
         TransactionOutput output = new TransactionOutput(params, tx, valueOf(0, 5), someOtherGuy);
         tx.addOutput(output);
@@ -666,7 +666,7 @@ public class WalletTest extends TestWithWallet {
     public void isConsistent_spent() throws Exception {
         // This test ensures that isConsistent catches transactions that are marked spent when
         // they aren't.
-        Transaction tx = createFakeTx(params, COIN, myAddress);
+        Transaction tx = createFakeTx(params, coin, myAddress);
         Address someOtherGuy = new ECKey().toAddress(params);
         TransactionOutput output = new TransactionOutput(params, tx, valueOf(0, 5), someOtherGuy);
         tx.addOutput(output);
@@ -679,7 +679,7 @@ public class WalletTest extends TestWithWallet {
     @Test
     public void transactions() throws Exception {
         // This test covers a bug in which Transaction.getValueSentFromMe was calculating incorrectly.
-        Transaction tx = createFakeTx(params, COIN, myAddress);
+        Transaction tx = createFakeTx(params, coin, myAddress);
         // Now add another output (ie, change) that goes to some other address.
         Address someOtherGuy = new ECKey().toAddress(params);
         TransactionOutput output = new TransactionOutput(params, tx, valueOf(0, 5), someOtherGuy);
@@ -693,14 +693,14 @@ public class WalletTest extends TestWithWallet {
         tx2.addInput(output);
         tx2.addOutput(new TransactionOutput(params, tx2, valueOf(0, 5), myAddress));
         // tx2 doesn't send any coins from us, even though the output is in the wallet.
-        assertEquals(ZERO, tx2.getValueSentFromMe(wallet));
+        assertEquals(zero, tx2.getValueSentFromMe(wallet));
     }
 
     @Test
     public void bounce() throws Exception {
         // This test covers bug 64 (False double spends). Check that if we create a spend and it's immediately sent
         // back to us, this isn't considered as a double spend.
-        Coin coin1 = COIN;
+        Coin coin1 = coin;
         sendMoneyToWallet(coin1, AbstractBlockChain.NewBlockType.BEST_CHAIN);
         // Send half to some other guy. Sending only half then waiting for a confirm is important to ensure the tx is
         // in the unspent pool, not pending or spent.
@@ -728,16 +728,16 @@ public class WalletTest extends TestWithWallet {
         // frees up the other outputs and makes them spendable again.
 
         // Receive 1 coin and then 2 coins in separate transactions.
-        sendMoneyToWallet(COIN, AbstractBlockChain.NewBlockType.BEST_CHAIN);
+        sendMoneyToWallet(coin, AbstractBlockChain.NewBlockType.BEST_CHAIN);
         sendMoneyToWallet(valueOf(2, 0), AbstractBlockChain.NewBlockType.BEST_CHAIN);
         // Create a send to a merchant of all our coins.
         Transaction send1 = wallet.createSend(new ECKey().toAddress(params), valueOf(2, 90));
         // Create a double spend of just the first one.
-        Transaction send2 = wallet.createSend(new ECKey().toAddress(params), COIN);
+        Transaction send2 = wallet.createSend(new ECKey().toAddress(params), coin);
         send2 = new Transaction(params, send2.bitcoinSerialize());
         // Broadcast send1, it's now pending.
         wallet.commitTx(send1);
-        assertEquals(ZERO, wallet.getBalance());
+        assertEquals(zero, wallet.getBalance());
         // Receive a block that overrides the send1 using send2.
         sendMoneyToWallet(send2, AbstractBlockChain.NewBlockType.BEST_CHAIN);
         // send1 got rolled back and replaced with a smaller send that only used one of our received coins, thus ...
@@ -753,7 +753,7 @@ public class WalletTest extends TestWithWallet {
         // This can (and has!) happened when a wallet is cloned between devices, and both devices decide to make the
         // same spend simultaneously - for example due a re-keying operation. It can also happen if there are malicious
         // nodes in the P2P network that are mutating transactions on the fly as occurred during Feb 2014.
-        final Coin value = COIN;
+        final Coin value = coin;
         final Coin value2 = valueOf(2, 0);
         // Give us three coins and make sure we have some change.
         sendMoneyToWallet(value.add(value2), AbstractBlockChain.NewBlockType.BEST_CHAIN);
@@ -769,13 +769,13 @@ public class WalletTest extends TestWithWallet {
         // Now spend the change. This transaction should die permanently when the mutant appears in the chain.
         Transaction send3 = checkNotNull(wallet.createSend(address, value));
         wallet.commitTx(send3);
-        assertEquals(ZERO, wallet.getBalance());
+        assertEquals(zero, wallet.getBalance());
         final LinkedList<Transaction> dead = new LinkedList<Transaction>();
         final TransactionConfidence.Listener listener = new TransactionConfidence.Listener() {
             @Override
             public void onConfidenceChanged(Transaction tx, ChangeReason reason) {
                 final TransactionConfidence.ConfidenceType type = tx.getConfidence().getConfidenceType();
-                if (reason == ChangeReason.TYPE && type == TransactionConfidence.ConfidenceType.DEAD)
+                if (reason == ChangeReason.TYPE && type.equals(TransactionConfidence.ConfidenceType.DEAD))
                     dead.add(tx);
             }
         };
@@ -806,8 +806,7 @@ public class WalletTest extends TestWithWallet {
             @Override
             public void onTransactionConfidenceChanged(Wallet wallet, Transaction tx) {
                 super.onTransactionConfidenceChanged(wallet, tx);
-                if (tx.getConfidence().getConfidenceType() ==
-                        TransactionConfidence.ConfidenceType.DEAD) {
+                if (tx.getConfidence().getConfidenceType().equals(TransactionConfidence.ConfidenceType.DEAD)) {
                     eventDead[0] = tx;
                     eventReplacement[0] = tx.getConfidence().getOverridingTransaction();
                 }
@@ -820,7 +819,7 @@ public class WalletTest extends TestWithWallet {
         });
 
         // Receive 1 BTC.
-        Coin nanos = COIN;
+        Coin nanos = coin;
         sendMoneyToWallet(nanos, AbstractBlockChain.NewBlockType.BEST_CHAIN);
         Transaction received = wallet.getTransactions(false).iterator().next();
         // Create a send to a merchant.
@@ -856,7 +855,7 @@ public class WalletTest extends TestWithWallet {
     @Test
     public void pending1() throws Exception {
         // Check that if we receive a pending transaction that is then confirmed, we are notified as appropriate.
-        final Coin nanos = COIN;
+        final Coin nanos = coin;
         final Transaction t1 = createFakeTx(params, nanos, myAddress);
 
         // First one is "called" second is "pending".
@@ -869,7 +868,7 @@ public class WalletTest extends TestWithWallet {
                 // Check we got the expected transaction.
                 assertEquals(tx, t1);
                 // Check that it's considered to be pending inclusion in the block chain.
-                assertEquals(prevBalance, ZERO);
+                assertEquals(prevBalance, zero);
                 assertEquals(newBalance, nanos);
                 flags[0] = true;
                 flags[1] = tx.isPending();
@@ -940,7 +939,7 @@ public class WalletTest extends TestWithWallet {
             }
         });
         // Receive some coins.
-        Coin nanos = COIN;
+        Coin nanos = coin;
         sendMoneyToWallet(nanos, AbstractBlockChain.NewBlockType.BEST_CHAIN);
         // Create a spend with them, but don't commit it (ie it's from somewhere else but using our keys). This TX
         // will have change as we don't spend our entire balance.
@@ -963,7 +962,7 @@ public class WalletTest extends TestWithWallet {
         // Check that if we receive a pending tx, and it's overridden by a double spend from the main chain, we
         // are notified that it's dead. This should work even if the pending tx inputs are NOT ours, ie, they don't
         // connect to anything.
-        Coin nanos = COIN;
+        Coin nanos = coin;
 
         // Create two transactions that share the same input tx.
         Address badGuy = new ECKey().toAddress(params);
@@ -989,15 +988,14 @@ public class WalletTest extends TestWithWallet {
             @Override
             public void onTransactionConfidenceChanged(Wallet wallet, Transaction tx) {
                 super.onTransactionConfidenceChanged(wallet, tx);
-                if (tx.getConfidence().getConfidenceType() ==
-                        TransactionConfidence.ConfidenceType.DEAD) {
+                if (tx.getConfidence().getConfidenceType().equals(TransactionConfidence.ConfidenceType.DEAD)) {
                     called[0] = tx;
                     called[1] = tx.getConfidence().getOverridingTransaction();
                 }
             }
         });
 
-        assertEquals(ZERO, wallet.getBalance());
+        assertEquals(zero, wallet.getBalance());
         if (wallet.isPendingTransactionRelevant(t1))
             wallet.receivePending(t1, null);
         Threading.waitForUserCode();
@@ -1007,7 +1005,7 @@ public class WalletTest extends TestWithWallet {
         called[0] = called[1] = null;
         sendMoneyToWallet(t2, AbstractBlockChain.NewBlockType.BEST_CHAIN);
         Threading.waitForUserCode();
-        assertEquals(ZERO, wallet.getBalance());
+        assertEquals(zero, wallet.getBalance());
         assertEquals(t1, called[0]); // dead
         assertEquals(t2, called[1]); // replacement
     }
@@ -1016,7 +1014,7 @@ public class WalletTest extends TestWithWallet {
     public void transactionsList() throws Exception {
         // Check the wallet can give us an ordered list of all received transactions.
         Utils.setMockClock();
-        Transaction tx1 = sendMoneyToWallet(COIN, AbstractBlockChain.NewBlockType.BEST_CHAIN);
+        Transaction tx1 = sendMoneyToWallet(coin, AbstractBlockChain.NewBlockType.BEST_CHAIN);
         Utils.rollMockClock(60 * 10);
         Transaction tx2 = sendMoneyToWallet(valueOf(0, 5), AbstractBlockChain.NewBlockType.BEST_CHAIN);
         // Check we got them back in order.
@@ -1078,7 +1076,7 @@ public class WalletTest extends TestWithWallet {
         // Test that a spend to the same wallet is dealt with correctly.
         // It should appear in the wallet and confirm.
         // This is a bit of a silly thing to do in the real world as all it does is burn a fee but it is perfectly valid.
-        Coin coin1 = COIN;
+        Coin coin1 = coin;
         Coin coinHalf = valueOf(0, 50);
         // Start by giving us 1 coin.
         sendMoneyToWallet(coin1, AbstractBlockChain.NewBlockType.BEST_CHAIN);
@@ -1088,7 +1086,7 @@ public class WalletTest extends TestWithWallet {
         Transaction outbound1 = wallet.createSend(myAddress, coinHalf);
         wallet.commitTx(outbound1);
         // We should have a zero available balance before the next block.
-        assertEquals(ZERO, wallet.getBalance());
+        assertEquals(zero, wallet.getBalance());
         sendMoneyToWallet(outbound1, AbstractBlockChain.NewBlockType.BEST_CHAIN);
         // We should have a balance of 1 BTC after the block is received.
         assertEquals(coin1, wallet.getBalance());
@@ -1135,7 +1133,7 @@ public class WalletTest extends TestWithWallet {
             wallet.receivePending(t1, null);
         // TX should have been seen as relevant.
         assertEquals(value, wallet.getBalance(Wallet.BalanceType.ESTIMATED));
-        assertEquals(ZERO, wallet.getBalance(Wallet.BalanceType.AVAILABLE));
+        assertEquals(zero, wallet.getBalance(Wallet.BalanceType.AVAILABLE));
         Block b1 = createFakeBlock(blockStore, t1).block;
         chain.add(b1);
         // TX should have been seen as relevant, extracted and processed.
@@ -1182,15 +1180,15 @@ public class WalletTest extends TestWithWallet {
         ECKey key = new ECKey();
         Address watchedAddress = key.toAddress(params);
         wallet.addWatchedAddress(watchedAddress);
-        Transaction t1 = createFakeTx(params, CENT, watchedAddress);
+        Transaction t1 = createFakeTx(params, cent, watchedAddress);
         StoredBlock b3 = createFakeBlock(blockStore, t1).storedBlock;
         wallet.receiveFromBlock(t1, b3, BlockChain.NewBlockType.BEST_CHAIN, 0);
-        assertEquals(ZERO, wallet.getBalance());
-        assertEquals(CENT, wallet.getWatchedBalance());
+        assertEquals(zero, wallet.getBalance());
+        assertEquals(cent, wallet.getWatchedBalance());
 
         // We can't spend watched balances
         Address notMyAddr = new ECKey().toAddress(params);
-        wallet.createSend(notMyAddr, CENT);
+        wallet.createSend(notMyAddr, cent);
     }
 
     @Test
@@ -1203,19 +1201,19 @@ public class WalletTest extends TestWithWallet {
         wallet.addWatchedAddress(watchedAddress);
         assertEquals(baseElements + 1, wallet.getBloomFilterElementCount());
 
-        Transaction t1 = createFakeTx(params, CENT, watchedAddress);
-        Transaction t2 = createFakeTx(params, COIN, notMyAddr);
+        Transaction t1 = createFakeTx(params, cent, watchedAddress);
+        Transaction t2 = createFakeTx(params, coin, notMyAddr);
         StoredBlock b1 = createFakeBlock(blockStore, t1).storedBlock;
         Transaction st2 = new Transaction(params);
-        st2.addOutput(CENT, notMyAddr);
-        st2.addOutput(COIN, notMyAddr);
+        st2.addOutput(cent, notMyAddr);
+        st2.addOutput(coin, notMyAddr);
         st2.addInput(t1.getOutput(0));
         st2.addInput(t2.getOutput(0));
         wallet.receiveFromBlock(t1, b1, BlockChain.NewBlockType.BEST_CHAIN, 0);
         assertEquals(baseElements + 2, wallet.getBloomFilterElementCount());
         wallet.receiveFromBlock(st2, b1, BlockChain.NewBlockType.BEST_CHAIN, 0);
         assertEquals(baseElements + 2, wallet.getBloomFilterElementCount());
-        assertEquals(CENT, st2.getValueSentFromMe(wallet));
+        assertEquals(cent, st2.getValueSentFromMe(wallet));
     }
 
     @Test
@@ -1227,7 +1225,7 @@ public class WalletTest extends TestWithWallet {
         wallet.addWatchedAddress(watchedAddress);
 
         assertTrue(wallet.isRequiringUpdateAllBloomFilter());
-        Transaction t1 = createFakeTx(params, CENT, watchedAddress);
+        Transaction t1 = createFakeTx(params, cent, watchedAddress);
         StoredBlock b1 = createFakeBlock(blockStore, t1).storedBlock;
 
         TransactionOutPoint outPoint = new TransactionOutPoint(params, 0, t1);
@@ -1255,7 +1253,7 @@ public class WalletTest extends TestWithWallet {
 
         assertTrue(wallet.getBloomFilter(0.001).contains(address.getHash160()));
 
-        Transaction t1 = createFakeTx(params, CENT, address);
+        Transaction t1 = createFakeTx(params, cent, address);
         StoredBlock b1 = createFakeBlock(blockStore, t1).storedBlock;
 
         TransactionOutPoint outPoint = new TransactionOutPoint(params, 0, t1);
@@ -1360,7 +1358,7 @@ public class WalletTest extends TestWithWallet {
     @Test
     public void spendOutputFromPendingTransaction() throws Exception {
         // We'll set up a wallet that receives a coin, then sends a coin of lesser value and keeps the change.
-        Coin v1 = COIN;
+        Coin v1 = coin;
         sendMoneyToWallet(v1, AbstractBlockChain.NewBlockType.BEST_CHAIN);
         // First create our current transaction
         ECKey k2 = wallet.freshReceiveKey();
@@ -1401,18 +1399,18 @@ public class WalletTest extends TestWithWallet {
         // Check that if a pending transaction spends outputs of chain-included transactions, we mark them as spent.
         // See bug 345. This can happen if there is a pending transaction floating around and then you replay the
         // chain without emptying the memory pool (or refilling it from a peer).
-        Coin value = COIN;
+        Coin value = coin;
         Transaction tx1 = createFakeTx(params, value, myAddress);
         Transaction tx2 = new Transaction(params);
         tx2.addInput(tx1.getOutput(0));
-        tx2.addOutput(valueOf(0, 9), someOtherAddress);
+        tx2.addOutput(valueOf(0, 9), new ECKey());
         // Add a change address to ensure this tx is relevant.
-        tx2.addOutput(CENT, wallet.getChangeAddress());
+        tx2.addOutput(cent, wallet.getChangeAddress());
         wallet.receivePending(tx2, null);
         BlockPair bp = createFakeBlock(blockStore, tx1);
         wallet.receiveFromBlock(tx1, bp.storedBlock, AbstractBlockChain.NewBlockType.BEST_CHAIN, 0);
         wallet.notifyNewBestBlock(bp.storedBlock);
-        assertEquals(ZERO, wallet.getBalance());
+        assertEquals(zero, wallet.getBalance());
         assertEquals(1, wallet.getPoolSize(Pool.SPENT));
         assertEquals(1, wallet.getPoolSize(Pool.PENDING));
         assertEquals(0, wallet.getPoolSize(Pool.UNSPENT));
@@ -1423,12 +1421,12 @@ public class WalletTest extends TestWithWallet {
         // Check that if there are two pending transactions which we receive out of order, they are marked as spent
         // correctly. For instance, we are watching a wallet, someone pays us (A) and we then pay someone else (B)
         // with a change address but the network delivers the transactions to us in order B then A.
-        Coin value = COIN;
+        Coin value = coin;
         Transaction a = createFakeTx(params, value, myAddress);
         Transaction b = new Transaction(params);
         b.addInput(a.getOutput(0));
-        b.addOutput(CENT, someOtherAddress);
-        Coin v = COIN.subtract(CENT);
+        b.addOutput(cent, someOtherAddress);
+        Coin v = coin.subtract(cent);
         b.addOutput(v, wallet.getChangeAddress());
         a = roundTripTransaction(params, a);
         b = roundTripTransaction(params, b);
@@ -1536,8 +1534,8 @@ public class WalletTest extends TestWithWallet {
         encryptedWallet.importKeysAndEncrypt(ImmutableList.of(key), PASSWORD1);
         assertEquals(1, encryptedWallet.getImportedKeys().size());
         assertEquals(key.getPubKeyPoint(), encryptedWallet.getImportedKeys().get(0).getPubKeyPoint());
-        sendMoneyToWallet(encryptedWallet, Coin.COIN, key.toAddress(params), AbstractBlockChain.NewBlockType.BEST_CHAIN);
-        assertEquals(Coin.COIN, encryptedWallet.getBalance());
+        sendMoneyToWallet(encryptedWallet, coin, key.toAddress(params), AbstractBlockChain.NewBlockType.BEST_CHAIN);
+        assertEquals(coin, encryptedWallet.getBalance());
         SendRequest req = Wallet.SendRequest.emptyWallet(new ECKey().toAddress(params));
         req.aesKey = checkNotNull(encryptedWallet.getKeyCrypter()).deriveKey(PASSWORD1);
         encryptedWallet.sendCoinsOffline(req);
@@ -1550,11 +1548,11 @@ public class WalletTest extends TestWithWallet {
         final int ITERATIONS = 10;
         Transaction[] txns = new Transaction[ITERATIONS];
         for (int i = 0; i < ITERATIONS; i++) {
-            txns[i] = sendMoneyToWallet(COIN, AbstractBlockChain.NewBlockType.BEST_CHAIN);
+            txns[i] = sendMoneyToWallet(coin, AbstractBlockChain.NewBlockType.BEST_CHAIN);
         }
         // Check that we spend transactions in order of reception.
         for (int i = 0; i < ITERATIONS; i++) {
-            Transaction spend = wallet.createSend(new ECKey().toAddress(params), COIN);
+            Transaction spend = wallet.createSend(new ECKey().toAddress(params), coin);
             assertEquals(spend.getInputs().size(), 1);
             assertEquals("Failed on iteration " + i, spend.getInput(0).getOutpoint().getHash(), txns[i].getHash());
             wallet.commitTx(spend);
@@ -1568,7 +1566,7 @@ public class WalletTest extends TestWithWallet {
         Transaction tx = new Transaction(params);
         byte[] bits = new byte[20];
         new Random().nextBytes(bits);
-        Coin v = CENT;
+        Coin v = cent;
         // 3100 outputs to a random address.
         for (int i = 0; i < 3100; i++) {
             tx.addOutput(v, new Address(params, bits));
@@ -1582,7 +1580,7 @@ public class WalletTest extends TestWithWallet {
         // Tests basic send of transaction with one output that doesn't transfer any value but just writes OP_RETURN.
         receiveATransaction(wallet, myAddress);
         Transaction tx = new Transaction(params);
-        Coin messagePrice = Coin.ZERO;
+        Coin messagePrice = zero;
         Script script = ScriptBuilder.createOpReturnScript("hello world!".getBytes());
         tx.addOutput(messagePrice, script);
         SendRequest request = Wallet.SendRequest.forTx(tx);
@@ -1594,7 +1592,7 @@ public class WalletTest extends TestWithWallet {
         // Tests basic send of transaction with one output that destroys coins and has an OP_RETURN.
         receiveATransaction(wallet, myAddress);
         Transaction tx = new Transaction(params);
-        Coin messagePrice = CENT;
+        Coin messagePrice = cent;
         Script script = ScriptBuilder.createOpReturnScript("hello world!".getBytes());
         tx.addOutput(messagePrice, script);
         SendRequest request = Wallet.SendRequest.forTx(tx);
@@ -1607,9 +1605,9 @@ public class WalletTest extends TestWithWallet {
         receiveATransaction(wallet, myAddress);
         Address notMyAddr = new ECKey().toAddress(params);
         Transaction tx = new Transaction(params);
-        Coin messagePrice = Coin.ZERO;
+        Coin messagePrice = zero;
         Script script = ScriptBuilder.createOpReturnScript("hello world!".getBytes());
-        tx.addOutput(CENT, notMyAddr);
+        tx.addOutput(cent, notMyAddr);
         tx.addOutput(messagePrice, script);
         SendRequest request = Wallet.SendRequest.forTx(tx);
         wallet.completeTx(request);
@@ -1620,7 +1618,7 @@ public class WalletTest extends TestWithWallet {
         // Tests sending transaction where there are 2 attempts to write OP_RETURN scripts - this should fail and throw MultipleOpReturnRequested.
         receiveATransaction(wallet, myAddress);
         Transaction tx = new Transaction(params);
-        Coin messagePrice = Coin.ZERO;
+        Coin messagePrice = zero;
         Script script1 = ScriptBuilder.createOpReturnScript("hello world 1!".getBytes());
         Script script2 = ScriptBuilder.createOpReturnScript("hello world 2!".getBytes());
         tx.addOutput(messagePrice, script1);
@@ -1634,20 +1632,20 @@ public class WalletTest extends TestWithWallet {
         // Tests sending dust, should throw DustySendRequested.
         Transaction tx = new Transaction(params);
         Address notMyAddr = new ECKey().toAddress(params);
-        tx.addOutput(Transaction.MIN_NONDUST_OUTPUT.subtract(SATOSHI), notMyAddr);
+        tx.addOutput(minNonDustTxOutput.subtract(satoshi), notMyAddr);
         SendRequest request = Wallet.SendRequest.forTx(tx);
         wallet.completeTx(request);
     }
 
     @Test
     public void sendMultipleCentsTest() throws Exception {
-        receiveATransactionAmount(wallet, myAddress, Coin.COIN);
+        receiveATransactionAmount(wallet, myAddress, coin);
         Transaction tx = new Transaction(params);
         Address notMyAddr = new ECKey().toAddress(params);
-        tx.addOutput(COIN.CENT.subtract(SATOSHI), notMyAddr);
-        tx.addOutput(COIN.CENT.subtract(SATOSHI), notMyAddr);
-        tx.addOutput(COIN.CENT.subtract(SATOSHI), notMyAddr);
-        tx.addOutput(COIN.CENT.subtract(SATOSHI), notMyAddr);
+        tx.addOutput(cent.subtract(satoshi), notMyAddr);
+        tx.addOutput(cent.subtract(satoshi), notMyAddr);
+        tx.addOutput(cent.subtract(satoshi), notMyAddr);
+        tx.addOutput(cent.subtract(satoshi), notMyAddr);
         SendRequest request = Wallet.SendRequest.forTx(tx);
         wallet.completeTx(request);
     }
@@ -1655,12 +1653,12 @@ public class WalletTest extends TestWithWallet {
     @Test(expected = Wallet.DustySendRequested.class)
     public void sendDustAndOpReturnWithoutValueTest() throws Exception {
         // Tests sending dust and OP_RETURN without value, should throw DustySendRequested because sending sending dust is not allowed in any case.
-        receiveATransactionAmount(wallet, myAddress, Coin.COIN);
+        receiveATransactionAmount(wallet, myAddress, coin);
         Transaction tx = new Transaction(params);
         Address notMyAddr = new ECKey().toAddress(params);
         Script script = new ScriptBuilder().op(ScriptOpCodes.OP_RETURN).data("hello world!".getBytes()).build();
-        tx.addOutput(Coin.ZERO, script);
-        tx.addOutput(Coin.SATOSHI, notMyAddr);
+        tx.addOutput(zero, script);
+        tx.addOutput(satoshi, notMyAddr);
         SendRequest request = Wallet.SendRequest.forTx(tx);
         wallet.completeTx(request);
     }
@@ -1672,8 +1670,8 @@ public class WalletTest extends TestWithWallet {
         Transaction tx = new Transaction(params);
         Address notMyAddr = new ECKey().toAddress(params);
         Script script = new ScriptBuilder().op(ScriptOpCodes.OP_RETURN).data("hello world!".getBytes()).build();
-        tx.addOutput(Coin.CENT, script);
-        tx.addOutput(Transaction.MIN_NONDUST_OUTPUT.subtract(SATOSHI), notMyAddr);
+        tx.addOutput(cent, script);
+        tx.addOutput(minNonDustTxOutput.subtract(satoshi), notMyAddr);
         SendRequest request = Wallet.SendRequest.forTx(tx);
         wallet.completeTx(request);
     }
@@ -1689,146 +1687,146 @@ public class WalletTest extends TestWithWallet {
 
         // Generate a few outputs to us that are far too small to spend reasonably
         StoredBlock block = new StoredBlock(makeSolvedTestBlock(blockStore, notMyAddr), BigInteger.ONE, 1);
-        Transaction tx1 = createFakeTx(params, SATOSHI, myAddress);
+        Transaction tx1 = createFakeTx(params, satoshi, myAddress);
         wallet.receiveFromBlock(tx1, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 0);
-        Transaction tx2 = createFakeTx(params, SATOSHI, myAddress);
+        Transaction tx2 = createFakeTx(params, satoshi, myAddress);
         assertTrue(!tx1.getHash().equals(tx2.getHash()));
         wallet.receiveFromBlock(tx2, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 1);
-        Transaction tx3 = createFakeTx(params, SATOSHI.multiply(10), myAddress);
+        Transaction tx3 = createFakeTx(params, satoshi.multiply(10), myAddress);
         wallet.receiveFromBlock(tx3, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 2);
 
         // Not allowed to send dust.
         try {
-            wallet.createSend(notMyAddr, SATOSHI);
+            wallet.createSend(notMyAddr, satoshi);
             fail();
         } catch (Wallet.DustySendRequested e) {
             // Expected.
         }
         // Spend it all without fee enforcement
-        SendRequest req = SendRequest.to(notMyAddr, SATOSHI.multiply(12));
+        SendRequest req = SendRequest.to(notMyAddr, satoshi.multiply(12));
         req.ensureMinRequiredFee = false;
         assertNotNull(wallet.sendCoinsOffline(req));
-        assertEquals(ZERO, wallet.getBalance());
+        assertEquals(zero, wallet.getBalance());
 
         // Add some reasonable-sized outputs
         block = new StoredBlock(makeSolvedTestBlock(blockStore, notMyAddr), BigInteger.ONE, 1);
-        Transaction tx4 = createFakeTx(params, Coin.COIN, myAddress);
+        Transaction tx4 = createFakeTx(params, coin, myAddress);
         wallet.receiveFromBlock(tx4, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 0);
 
         // Simple test to make sure if we have an ouput < 0.01 we get a fee
-        Transaction spend1 = wallet.createSend(notMyAddr, CENT.subtract(SATOSHI));
+        Transaction spend1 = wallet.createSend(notMyAddr, cent.subtract(satoshi));
         assertEquals(2, spend1.getOutputs().size());
         // We optimize for priority, so the output selected should be the largest one.
         // We should have paid the default minfee.
         assertEquals(spend1.getOutput(0).getValue().add(spend1.getOutput(1).getValue()),
-                Coin.COIN.subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE));
+                coin.subtract(minTxFee));
 
         // But not at exactly 0.01
-        Transaction spend2 = wallet.createSend(notMyAddr, CENT);
+        Transaction spend2 = wallet.createSend(notMyAddr, cent);
         assertEquals(2, spend2.getOutputs().size());
         // We optimize for priority, so the output selected should be the largest one
-        assertEquals(Coin.COIN, spend2.getOutput(0).getValue().add(spend2.getOutput(1).getValue()));
+        assertEquals(coin, spend2.getOutput(0).getValue().add(spend2.getOutput(1).getValue()));
 
         // ...but not more fee than what we request
-        SendRequest request3 = SendRequest.to(notMyAddr, CENT.subtract(SATOSHI));
-        request3.fee = Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.add(SATOSHI);
+        SendRequest request3 = SendRequest.to(notMyAddr, cent.subtract(satoshi));
+        request3.fee = minTxFee.add(satoshi);
         wallet.completeTx(request3);
-        assertEquals(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.add(SATOSHI), request3.tx.getFee());
+        assertEquals(minTxFee.add(satoshi), request3.tx.getFee());
         Transaction spend3 = request3.tx;
         assertEquals(2, spend3.getOutputs().size());
         // We optimize for priority, so the output selected should be the largest one.
         assertEquals(spend3.getOutput(0).getValue().add(spend3.getOutput(1).getValue()),
-                Coin.COIN.subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.add(SATOSHI)));
+                coin.subtract(minTxFee.add(satoshi)));
 
         // ...unless we need it
-        SendRequest request4 = SendRequest.to(notMyAddr, CENT.subtract(SATOSHI));
-        request4.fee = Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.subtract(SATOSHI);
+        SendRequest request4 = SendRequest.to(notMyAddr, cent.subtract(satoshi));
+        request4.fee = minTxFee.subtract(satoshi);
         wallet.completeTx(request4);
-        assertEquals(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE, request4.tx.getFee());
+        assertEquals(minTxFee, request4.tx.getFee());
         Transaction spend4 = request4.tx;
         assertEquals(2, spend4.getOutputs().size());
         // We optimize for priority, so the output selected should be the largest one.
         assertEquals(spend4.getOutput(0).getValue().add(spend4.getOutput(1).getValue()),
-                Coin.COIN.subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE));
+                coin.subtract(minTxFee));
 
-        SendRequest request5 = SendRequest.to(notMyAddr, Coin.COIN.subtract(CENT.subtract(SATOSHI)));
+        SendRequest request5 = SendRequest.to(notMyAddr, coin.subtract(cent.subtract(satoshi)));
         wallet.completeTx(request5);
-        assertEquals(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE, request5.tx.getFee());
+        assertEquals(minTxFee, request5.tx.getFee());
         Transaction spend5 = request5.tx;
         // If we would have a change output < 0.01, it should add the fee
         assertEquals(2, spend5.getOutputs().size());
         // We optimize for priority, so the output selected should be the largest one.
         assertEquals(spend5.getOutput(0).getValue().add(spend5.getOutput(1).getValue()),
-                Coin.COIN.subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE));
+                coin.subtract(minTxFee));
 
-        SendRequest request6 = SendRequest.to(notMyAddr, Coin.COIN.subtract(CENT));
+        SendRequest request6 = SendRequest.to(notMyAddr, coin.subtract(cent));
         wallet.completeTx(request6);
-        assertEquals(ZERO, request6.tx.getFee());
+        assertEquals(zero, request6.tx.getFee());
         Transaction spend6 = request6.tx;
         // ...but not if change output == 0.01
         assertEquals(2, spend6.getOutputs().size());
         // We optimize for priority, so the output selected should be the largest one
-        assertEquals(Coin.COIN, spend6.getOutput(0).getValue().add(spend6.getOutput(1).getValue()));
+        assertEquals(coin, spend6.getOutput(0).getValue().add(spend6.getOutput(1).getValue()));
 
-        SendRequest request7 = SendRequest.to(notMyAddr, Coin.COIN.subtract(CENT.subtract(SATOSHI.multiply(2)).multiply(2)));
-        request7.tx.addOutput(CENT.subtract(SATOSHI), notMyAddr);
+        SendRequest request7 = SendRequest.to(notMyAddr, coin.subtract(cent.subtract(satoshi.multiply(2)).multiply(2)));
+        request7.tx.addOutput(cent.subtract(satoshi), notMyAddr);
         wallet.completeTx(request7);
-        assertEquals(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE, request7.tx.getFee());
+        assertEquals(minTxFee, request7.tx.getFee());
         Transaction spend7 = request7.tx;
         // If change is 0.1-satoshi and we already have a 0.1-satoshi output, fee should be reference fee
         assertEquals(3, spend7.getOutputs().size());
         // We optimize for priority, so the output selected should be the largest one.
         assertEquals(spend7.getOutput(0).getValue().add(spend7.getOutput(1).getValue()).add(spend7.getOutput(2).getValue()),
-                Coin.COIN.subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE));
+                coin.subtract(minTxFee));
 
-        SendRequest request8 = SendRequest.to(notMyAddr, COIN.subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE));
+        SendRequest request8 = SendRequest.to(notMyAddr, coin.subtract(minTxFee));
         wallet.completeTx(request8);
-        assertEquals(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE, request8.tx.getFee());
+        assertEquals(minTxFee, request8.tx.getFee());
         Transaction spend8 = request8.tx;
         // If we would have a change output == REFERENCE_DEFAULT_MIN_TX_FEE that would cause a fee, throw it away and make it fee
         assertEquals(1, spend8.getOutputs().size());
         // We optimize for priority, so the output selected should be the largest one
-        assertEquals(spend8.getOutput(0).getValue(), COIN.subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE));
+        assertEquals(spend8.getOutput(0).getValue(), coin.subtract(minTxFee));
 
-        SendRequest request9 = SendRequest.to(notMyAddr, COIN.subtract(
-                Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.add(Transaction.MIN_NONDUST_OUTPUT)));
+        SendRequest request9 = SendRequest.to(notMyAddr, coin.subtract(
+                minTxFee.add(minNonDustTxOutput)));
         wallet.completeTx(request9);
-        assertEquals(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.add(Transaction.MIN_NONDUST_OUTPUT), request9.tx.getFee());
+        assertEquals(minTxFee.add(minNonDustTxOutput), request9.tx.getFee());
         Transaction spend9 = request9.tx;
         // ...in fact, also add fee if we would get back less than MIN_NONDUST_OUTPUT
         assertEquals(1, spend9.getOutputs().size());
         // We optimize for priority, so the output selected should be the largest one.
         assertEquals(spend9.getOutput(0).getValue(),
-                COIN.subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.add(Transaction.MIN_NONDUST_OUTPUT)));
+                coin.subtract(minTxFee.add(minNonDustTxOutput)));
 
-        SendRequest request10 = SendRequest.to(notMyAddr, COIN.subtract(
-                Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.add(Transaction.MIN_NONDUST_OUTPUT).add(SATOSHI)));
+        SendRequest request10 = SendRequest.to(notMyAddr, coin.subtract(
+                minTxFee.add(minNonDustTxOutput).add(satoshi)));
         wallet.completeTx(request10);
-        assertEquals(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE, request10.tx.getFee());
+        assertEquals(minTxFee, request10.tx.getFee());
         Transaction spend10 = request10.tx;
         // ...but if we get back any more than that, we should get a refund (but still pay fee)
         assertEquals(2, spend10.getOutputs().size());
         // We optimize for priority, so the output selected should be the largest one
         assertEquals(spend10.getOutput(0).getValue().add(spend10.getOutput(1).getValue()),
-                COIN.subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE));
+                coin.subtract(minTxFee));
 
-        SendRequest request11 = SendRequest.to(notMyAddr, COIN.subtract(
-                Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.add(Transaction.MIN_NONDUST_OUTPUT).add(SATOSHI.multiply(2))));
-        request11.fee = Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.add(SATOSHI);
+        SendRequest request11 = SendRequest.to(notMyAddr, coin.subtract(
+                minTxFee.add(minNonDustTxOutput).add(satoshi.multiply(2))));
+        request11.fee = minTxFee.add(satoshi);
         wallet.completeTx(request11);
-        assertEquals(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.add(SATOSHI), request11.tx.getFee());
+        assertEquals(minTxFee.add(satoshi), request11.tx.getFee());
         Transaction spend11 = request11.tx;
-        // ...of course fee should be min(request.fee, MIN_TX_FEE) so we should get MIN_TX_FEE.add(SATOSHI) here
+        // ...of course fee should be min(request.fee, MIN_TX_FEE) so we should get MIN_TX_FEE.add(satoshi) here
         assertEquals(2, spend11.getOutputs().size());
         // We optimize for priority, so the output selected should be the largest one.
         assertEquals(spend11.getOutput(0).getValue().add(spend11.getOutput(1).getValue()),
-                COIN.subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.add(SATOSHI)));
+                coin.subtract(minTxFee.add(satoshi)));
 
         // Remove the coin from our wallet
         wallet.commitTx(spend11);
-        Transaction tx5 = createFakeTx(params, CENT, myAddress);
+        Transaction tx5 = createFakeTx(params, cent, myAddress);
         wallet.receiveFromBlock(tx5, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 0);
-        assertEquals(CENT, wallet.getBalance());
+        assertEquals(cent, wallet.getBalance());
 
         // Now test coin selection properly selects coin*depth
         for (int i = 0; i < 100; i++) {
@@ -1837,71 +1835,71 @@ public class WalletTest extends TestWithWallet {
         }
 
         block = new StoredBlock(makeSolvedTestBlock(blockStore, notMyAddr), BigInteger.ONE, 1);
-        Transaction tx6 = createFakeTx(params, COIN, myAddress);
+        Transaction tx6 = createFakeTx(params, coin, myAddress);
         wallet.receiveFromBlock(tx6, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 1);
         assertTrue(tx5.getOutput(0).isMine(wallet) && tx5.getOutput(0).isAvailableForSpending() && tx5.getConfidence().getDepthInBlocks() == 100);
         assertTrue(tx6.getOutput(0).isMine(wallet) && tx6.getOutput(0).isAvailableForSpending() && tx6.getConfidence().getDepthInBlocks() == 1);
 
         // tx5 and tx6 have exactly the same coin*depth, so the larger should be selected...
-        Transaction spend12 = wallet.createSend(notMyAddr, CENT);
-        assertTrue(spend12.getOutputs().size() == 2 && spend12.getOutput(0).getValue().add(spend12.getOutput(1).getValue()).equals(COIN));
+        Transaction spend12 = wallet.createSend(notMyAddr, cent);
+        assertTrue(spend12.getOutputs().size() == 2 && spend12.getOutput(0).getValue().add(spend12.getOutput(1).getValue()).equals(coin));
 
         wallet.notifyNewBestBlock(block);
         assertTrue(tx5.getOutput(0).isMine(wallet) && tx5.getOutput(0).isAvailableForSpending() && tx5.getConfidence().getDepthInBlocks() == 101);
         assertTrue(tx6.getOutput(0).isMine(wallet) && tx6.getOutput(0).isAvailableForSpending() && tx6.getConfidence().getDepthInBlocks() == 1);
         // Now tx5 has slightly higher coin*depth than tx6...
-        Transaction spend13 = wallet.createSend(notMyAddr, CENT);
-        assertTrue(spend13.getOutputs().size() == 1 && spend13.getOutput(0).getValue().equals(CENT));
+        Transaction spend13 = wallet.createSend(notMyAddr, cent);
+        assertTrue(spend13.getOutputs().size() == 1 && spend13.getOutput(0).getValue().equals(cent));
 
         block = new StoredBlock(makeSolvedTestBlock(blockStore, notMyAddr), BigInteger.ONE, 1);
         wallet.notifyNewBestBlock(block);
         assertTrue(tx5.getOutput(0).isMine(wallet) && tx5.getOutput(0).isAvailableForSpending() && tx5.getConfidence().getDepthInBlocks() == 102);
         assertTrue(tx6.getOutput(0).isMine(wallet) && tx6.getOutput(0).isAvailableForSpending() && tx6.getConfidence().getDepthInBlocks() == 2);
         // Now tx6 has higher coin*depth than tx5...
-        Transaction spend14 = wallet.createSend(notMyAddr, CENT);
-        assertTrue(spend14.getOutputs().size() == 2 && spend14.getOutput(0).getValue().add(spend14.getOutput(1).getValue()).equals(COIN));
+        Transaction spend14 = wallet.createSend(notMyAddr, cent);
+        assertTrue(spend14.getOutputs().size() == 2 && spend14.getOutput(0).getValue().add(spend14.getOutput(1).getValue()).equals(coin));
 
         // Now test feePerKb
-        SendRequest request15 = SendRequest.to(notMyAddr, CENT);
+        SendRequest request15 = SendRequest.to(notMyAddr, cent);
         for (int i = 0; i < 29; i++)
-            request15.tx.addOutput(CENT, notMyAddr);
+            request15.tx.addOutput(cent, notMyAddr);
         assertTrue(request15.tx.bitcoinSerialize().length > 1000);
-        request15.feePerKb = SATOSHI;
+        request15.feePerKb = satoshi;
         wallet.completeTx(request15);
-        assertEquals(SATOSHI.multiply(2), request15.tx.getFee());
+        assertEquals(satoshi.multiply(2), request15.tx.getFee());
         Transaction spend15 = request15.tx;
         // If a transaction is over 1kb, 2 satoshis should be added.
         assertEquals(31, spend15.getOutputs().size());
         // We optimize for priority, so the output selected should be the largest one
-        Coin outValue15 = ZERO;
+        Coin outValue15 = zero;
         for (TransactionOutput out : spend15.getOutputs())
             outValue15 = outValue15.add(out.getValue());
-        assertEquals(COIN.subtract(SATOSHI.multiply(2)), outValue15);
+        assertEquals(coin.subtract(satoshi.multiply(2)), outValue15);
 
-        SendRequest request16 = SendRequest.to(notMyAddr, CENT);
-        request16.feePerKb = ZERO;
+        SendRequest request16 = SendRequest.to(notMyAddr, cent);
+        request16.feePerKb = zero;
         for (int i = 0; i < 29; i++)
-            request16.tx.addOutput(CENT, notMyAddr);
+            request16.tx.addOutput(cent, notMyAddr);
         assertTrue(request16.tx.bitcoinSerialize().length > 1000);
         wallet.completeTx(request16);
         // Of course the fee shouldn't be added if feePerKb == 0
-        assertEquals(ZERO, request16.tx.getFee());
+        assertEquals(zero, request16.tx.getFee());
         Transaction spend16 = request16.tx;
         assertEquals(31, spend16.getOutputs().size());
         // We optimize for priority, so the output selected should be the largest one
-        Coin outValue16 = ZERO;
+        Coin outValue16 = zero;
         for (TransactionOutput out : spend16.getOutputs())
             outValue16 = outValue16.add(out.getValue());
-        assertEquals(COIN, outValue16);
+        assertEquals(coin, outValue16);
 
         // Create a transaction whose max size could be up to 999 (if signatures were maximum size)
-        SendRequest request17 = SendRequest.to(notMyAddr, CENT);
+        SendRequest request17 = SendRequest.to(notMyAddr, cent);
         for (int i = 0; i < 22; i++)
-            request17.tx.addOutput(CENT, notMyAddr);
-        request17.tx.addOutput(new TransactionOutput(params, request17.tx, CENT, new byte[15]));
-        request17.feePerKb = SATOSHI;
+            request17.tx.addOutput(cent, notMyAddr);
+        request17.tx.addOutput(new TransactionOutput(params, request17.tx, cent, new byte[15]));
+        request17.feePerKb = satoshi;
         wallet.completeTx(request17);
-        assertEquals(SATOSHI, request17.tx.getFee());
+        assertEquals(satoshi, request17.tx.getFee());
         assertEquals(1, request17.tx.getInputs().size());
         // Calculate its max length to make sure it is indeed 999
         int theoreticalMaxLength17 = request17.tx.bitcoinSerialize().length + myKey.getPubKey().length + 75;
@@ -1917,19 +1915,19 @@ public class WalletTest extends TestWithWallet {
         // Now check that it got a fee of 1 since its max size is 999 (1kb).
         assertEquals(25, spend17.getOutputs().size());
         // We optimize for priority, so the output selected should be the largest one
-        Coin outValue17 = ZERO;
+        Coin outValue17 = zero;
         for (TransactionOutput out : spend17.getOutputs())
             outValue17 = outValue17.add(out.getValue());
-        assertEquals(COIN.subtract(SATOSHI), outValue17);
+        assertEquals(coin.subtract(satoshi), outValue17);
 
         // Create a transaction who's max size could be up to 1001 (if signatures were maximum size)
-        SendRequest request18 = SendRequest.to(notMyAddr, CENT);
+        SendRequest request18 = SendRequest.to(notMyAddr, cent);
         for (int i = 0; i < 22; i++)
-            request18.tx.addOutput(CENT, notMyAddr);
-        request18.tx.addOutput(new TransactionOutput(params, request18.tx, CENT, new byte[17]));
-        request18.feePerKb = SATOSHI;
+            request18.tx.addOutput(cent, notMyAddr);
+        request18.tx.addOutput(new TransactionOutput(params, request18.tx, cent, new byte[17]));
+        request18.feePerKb = satoshi;
         wallet.completeTx(request18);
-        assertEquals(SATOSHI.multiply(2), request18.tx.getFee());
+        assertEquals(satoshi.multiply(2), request18.tx.getFee());
         assertEquals(1, request18.tx.getInputs().size());
         // Calculate its max length to make sure it is indeed 1001
         Transaction spend18 = request18.tx;
@@ -1943,139 +1941,139 @@ public class WalletTest extends TestWithWallet {
         // Now check that it did get a fee since its max size is 1000
         assertEquals(25, spend18.getOutputs().size());
         // We optimize for priority, so the output selected should be the largest one
-        Coin outValue18 = ZERO;
+        Coin outValue18 = zero;
         for (TransactionOutput out : spend18.getOutputs())
             outValue18 = outValue18.add(out.getValue());
-        assertEquals(outValue18, COIN.subtract(SATOSHI.multiply(2)));
+        assertEquals(outValue18, coin.subtract(satoshi.multiply(2)));
 
-        // Now create a transaction that will spend COIN + fee, which makes it require both inputs
-        assertEquals(wallet.getBalance(), CENT.add(COIN));
-        SendRequest request19 = SendRequest.to(notMyAddr, CENT);
-        request19.feePerKb = ZERO;
+        // Now create a transaction that will spend coin + fee, which makes it require both inputs
+        assertEquals(wallet.getBalance(), cent.add(coin));
+        SendRequest request19 = SendRequest.to(notMyAddr, cent);
+        request19.feePerKb = zero;
         for (int i = 0; i < 99; i++)
-            request19.tx.addOutput(CENT, notMyAddr);
-        // If we send now, we shouldn't need a fee and should only have to spend our COIN
+            request19.tx.addOutput(cent, notMyAddr);
+        // If we send now, we shouldn't need a fee and should only have to spend our coin
         wallet.completeTx(request19);
-        assertEquals(ZERO, request19.tx.getFee());
+        assertEquals(zero, request19.tx.getFee());
         assertEquals(1, request19.tx.getInputs().size());
         assertEquals(100, request19.tx.getOutputs().size());
         // Now reset request19 and give it a fee per kb
         request19.tx.clearInputs();
         request19 = SendRequest.forTx(request19.tx);
-        request19.feePerKb = SATOSHI;
+        request19.feePerKb = satoshi;
         request19.shuffleOutputs = false;
         wallet.completeTx(request19);
-        assertEquals(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE, request19.tx.getFee());
+        assertEquals(minTxFee, request19.tx.getFee());
         assertEquals(2, request19.tx.getInputs().size());
-        Coin outValue19 = ZERO;
+        Coin outValue19 = zero;
         for (TransactionOutput out : request19.tx.getOutputs())
             outValue19 = outValue19.add(out.getValue());
-        // But now our change output is CENT-minfee, so we have to pay min fee
-        assertEquals(request19.tx.getOutput(request19.tx.getOutputs().size() - 1).getValue(), CENT.subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE));
-        assertEquals(outValue19, COIN.add(CENT).subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE));
+        // But now our change output is cent-minfee, so we have to pay min fee
+        assertEquals(request19.tx.getOutput(request19.tx.getOutputs().size() - 1).getValue(), cent.subtract(minTxFee));
+        assertEquals(outValue19, coin.add(cent).subtract(minTxFee));
 
-        // Create another transaction that will spend COIN + fee, which makes it require both inputs
-        SendRequest request20 = SendRequest.to(notMyAddr, CENT);
-        request20.feePerKb = ZERO;
+        // Create another transaction that will spend coin + fee, which makes it require both inputs
+        SendRequest request20 = SendRequest.to(notMyAddr, cent);
+        request20.feePerKb = zero;
         for (int i = 0; i < 99; i++)
-            request20.tx.addOutput(CENT, notMyAddr);
-        // If we send now, we shouldn't have a fee and should only have to spend our COIN
+            request20.tx.addOutput(cent, notMyAddr);
+        // If we send now, we shouldn't have a fee and should only have to spend our coin
         wallet.completeTx(request20);
-        assertEquals(ZERO, request20.tx.getFee());
+        assertEquals(zero, request20.tx.getFee());
         assertEquals(1, request20.tx.getInputs().size());
         assertEquals(100, request20.tx.getOutputs().size());
         // Now reset request19 and give it a fee per kb
         request20.tx.clearInputs();
         request20 = SendRequest.forTx(request20.tx);
-        request20.feePerKb = Transaction.REFERENCE_DEFAULT_MIN_TX_FEE;
+        request20.feePerKb = minTxFee;
         wallet.completeTx(request20);
         // 4kb tx.
-        assertEquals(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.multiply(4), request20.tx.getFee());
+        assertEquals(minTxFee.multiply(4), request20.tx.getFee());
         assertEquals(2, request20.tx.getInputs().size());
-        Coin outValue20 = ZERO;
+        Coin outValue20 = zero;
         for (TransactionOutput out : request20.tx.getOutputs())
             outValue20 = outValue20.add(out.getValue());
         // This time the fee we wanted to pay was more, so that should be what we paid
-        assertEquals(outValue20, COIN.add(CENT).subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.multiply(4)));
+        assertEquals(outValue20, coin.add(cent).subtract(minTxFee.multiply(4)));
 
         // Same as request 19, but make the change 0 (so it doesnt force fee) and make us require min fee as a
-        // result of an output < CENT.
-        SendRequest request21 = SendRequest.to(notMyAddr, CENT);
-        request21.feePerKb = ZERO;
+        // result of an output < cent.
+        SendRequest request21 = SendRequest.to(notMyAddr, cent);
+        request21.feePerKb = zero;
         for (int i = 0; i < 99; i++)
-            request21.tx.addOutput(CENT, notMyAddr);
-        request21.tx.addOutput(CENT.subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE), notMyAddr);
+            request21.tx.addOutput(cent, notMyAddr);
+        request21.tx.addOutput(cent.subtract(minTxFee), notMyAddr);
         // If we send without a feePerKb, we should still require REFERENCE_DEFAULT_MIN_TX_FEE because we have an output < 0.01
         wallet.completeTx(request21);
-        assertEquals(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE, request21.tx.getFee());
+        assertEquals(minTxFee, request21.tx.getFee());
         assertEquals(2, request21.tx.getInputs().size());
-        Coin outValue21 = ZERO;
+        Coin outValue21 = zero;
         for (TransactionOutput out : request21.tx.getOutputs())
             outValue21 = outValue21.add(out.getValue());
-        assertEquals(outValue21, COIN.add(CENT).subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE));
+        assertEquals(outValue21, coin.add(cent).subtract(minTxFee));
 
         // Test feePerKb when we aren't using ensureMinRequiredFee
         // Same as request 19
-        SendRequest request25 = SendRequest.to(notMyAddr, CENT);
-        request25.feePerKb = ZERO;
+        SendRequest request25 = SendRequest.to(notMyAddr, cent);
+        request25.feePerKb = zero;
         for (int i = 0; i < 70; i++)
-            request25.tx.addOutput(CENT, notMyAddr);
-        // If we send now, we shouldn't need a fee and should only have to spend our COIN
+            request25.tx.addOutput(cent, notMyAddr);
+        // If we send now, we shouldn't need a fee and should only have to spend our coin
         wallet.completeTx(request25);
-        assertEquals(ZERO, request25.tx.getFee());
+        assertEquals(zero, request25.tx.getFee());
         assertEquals(1, request25.tx.getInputs().size());
         assertEquals(72, request25.tx.getOutputs().size());
         // Now reset request19 and give it a fee per kb
         request25.tx.clearInputs();
         request25 = SendRequest.forTx(request25.tx);
-        request25.feePerKb = CENT.divide(3);
+        request25.feePerKb = cent.divide(3);
         request25.ensureMinRequiredFee = false;
         request25.shuffleOutputs = false;
         wallet.completeTx(request25);
-        assertEquals(CENT.subtract(SATOSHI), request25.tx.getFee());
+        assertEquals(cent.subtract(satoshi), request25.tx.getFee());
         assertEquals(2, request25.tx.getInputs().size());
-        Coin outValue25 = ZERO;
+        Coin outValue25 = zero;
         for (TransactionOutput out : request25.tx.getOutputs())
             outValue25 = outValue25.add(out.getValue());
         // Our change output should be one satoshi
-        assertEquals(SATOSHI, request25.tx.getOutput(request25.tx.getOutputs().size() - 1).getValue());
-        // and our fee should be CENT-1 satoshi
-        assertEquals(outValue25, COIN.add(SATOSHI));
+        assertEquals(satoshi, request25.tx.getOutput(request25.tx.getOutputs().size() - 1).getValue());
+        // and our fee should be cent-1 satoshi
+        assertEquals(outValue25, coin.add(satoshi));
 
-        // Spend our CENT output.
+        // Spend our cent output.
         Transaction spendTx5 = new Transaction(params);
-        spendTx5.addOutput(CENT, notMyAddr);
+        spendTx5.addOutput(cent, notMyAddr);
         spendTx5.addInput(tx5.getOutput(0));
         wallet.signTransaction(SendRequest.forTx(spendTx5));
 
         wallet.receiveFromBlock(spendTx5, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 4);
-        assertEquals(COIN, wallet.getBalance());
+        assertEquals(coin, wallet.getBalance());
 
         // Ensure change is discarded if it results in a fee larger than the chain (same as 8 and 9 but with feePerKb)
-        SendRequest request26 = SendRequest.to(notMyAddr, CENT);
+        SendRequest request26 = SendRequest.to(notMyAddr, cent);
         for (int i = 0; i < 98; i++)
-            request26.tx.addOutput(CENT, notMyAddr);
-        request26.tx.addOutput(CENT.subtract(
-                Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.add(Transaction.MIN_NONDUST_OUTPUT)), notMyAddr);
+            request26.tx.addOutput(cent, notMyAddr);
+        request26.tx.addOutput(cent.subtract(
+                minTxFee.add(minNonDustTxOutput)), notMyAddr);
         assertTrue(request26.tx.bitcoinSerialize().length > 1000);
-        request26.feePerKb = SATOSHI;
+        request26.feePerKb = satoshi;
         wallet.completeTx(request26);
-        assertEquals(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.add(Transaction.MIN_NONDUST_OUTPUT), request26.tx.getFee());
+        assertEquals(minTxFee.add(minNonDustTxOutput), request26.tx.getFee());
         Transaction spend26 = request26.tx;
         // If a transaction is over 1kb, the set fee should be added
         assertEquals(100, spend26.getOutputs().size());
         // We optimize for priority, so the output selected should be the largest one
-        Coin outValue26 = ZERO;
+        Coin outValue26 = zero;
         for (TransactionOutput out : spend26.getOutputs())
             outValue26 = outValue26.add(out.getValue());
-        assertEquals(outValue26, COIN.subtract(
-                Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.add(Transaction.MIN_NONDUST_OUTPUT)));
+        assertEquals(outValue26, coin.subtract(
+                minTxFee.add(minNonDustTxOutput)));
     }
 
     @Test
     public void basicCategoryStepTest() throws Exception {
         // Creates spends that step through the possible fee solver categories
-        SendRequest.DEFAULT_FEE_PER_KB = ZERO;
+        SendRequest.DEFAULT_FEE_PER_KB = zero;
         // Make sure TestWithWallet isnt doing anything crazy.
         assertEquals(0, wallet.getTransactions(true).size());
 
@@ -2093,9 +2091,9 @@ public class WalletTest extends TestWithWallet {
         Coin balance = wallet.getBalance();
 
         // Create a spend that will throw away change (category 3 type 2 in which the change causes fee which is worth more than change)
-        SendRequest request1 = SendRequest.to(notMyAddr, balance.subtract(SATOSHI));
+        SendRequest request1 = SendRequest.to(notMyAddr, balance.subtract(satoshi));
         wallet.completeTx(request1);
-        assertEquals(SATOSHI, request1.tx.getFee());
+        assertEquals(satoshi, request1.tx.getFee());
         assertEquals(request1.tx.getInputs().size(), i); // We should have spent all inputs
 
         // Give us one more input...
@@ -2104,9 +2102,9 @@ public class WalletTest extends TestWithWallet {
         wallet.receiveFromBlock(tx1, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, i);
 
         // ... and create a spend that will throw away change (category 3 type 1 in which the change causes dust output)
-        SendRequest request2 = SendRequest.to(notMyAddr, balance.subtract(SATOSHI));
+        SendRequest request2 = SendRequest.to(notMyAddr, balance.subtract(satoshi));
         wallet.completeTx(request2);
-        assertEquals(SATOSHI, request2.tx.getFee());
+        assertEquals(satoshi, request2.tx.getFee());
         assertEquals(request2.tx.getInputs().size(), i - 1); // We should have spent all inputs - 1
 
         // Give us one more input...
@@ -2116,29 +2114,29 @@ public class WalletTest extends TestWithWallet {
 
         // ... and create a spend that will throw away change (category 3 type 1 in which the change causes dust output)
         // but that also could have been category 2 if it wanted
-        SendRequest request3 = SendRequest.to(notMyAddr, CENT.add(tenThousand).subtract(SATOSHI));
+        SendRequest request3 = SendRequest.to(notMyAddr, cent.add(tenThousand).subtract(satoshi));
         wallet.completeTx(request3);
-        assertEquals(SATOSHI, request3.tx.getFee());
+        assertEquals(satoshi, request3.tx.getFee());
         assertEquals(request3.tx.getInputs().size(), i - 2); // We should have spent all inputs - 2
 
         //
-        SendRequest request4 = SendRequest.to(notMyAddr, balance.subtract(SATOSHI));
-        request4.feePerKb = Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.divide(request3.tx.bitcoinSerialize().length);
+        SendRequest request4 = SendRequest.to(notMyAddr, balance.subtract(satoshi));
+        request4.feePerKb = minTxFee.divide(request3.tx.bitcoinSerialize().length);
         wallet.completeTx(request4);
-        assertEquals(SATOSHI, request4.tx.getFee());
+        assertEquals(satoshi, request4.tx.getFee());
         assertEquals(request4.tx.getInputs().size(), i - 2); // We should have spent all inputs - 2
 
         // Give us a few more inputs...
-        while (wallet.getBalance().compareTo(CENT.multiply(2)) < 0) {
+        while (wallet.getBalance().compareTo(cent.multiply(2)) < 0) {
             Transaction tx3 = createFakeTxWithChangeAddress(params, tenThousand, myAddress, notMyAddr);
             tx3.getInput(0).setSequenceNumber(i++); // Keep every transaction unique
             wallet.receiveFromBlock(tx3, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, i);
         }
 
         // ...that is just slightly less than is needed for category 1
-        SendRequest request5 = SendRequest.to(notMyAddr, CENT.add(tenThousand).subtract(SATOSHI));
+        SendRequest request5 = SendRequest.to(notMyAddr, cent.add(tenThousand).subtract(satoshi));
         wallet.completeTx(request5);
-        assertEquals(SATOSHI, request5.tx.getFee());
+        assertEquals(satoshi, request5.tx.getFee());
         assertEquals(1, request5.tx.getOutputs().size()); // We should have no change output
 
         // Give us one more input...
@@ -2147,12 +2145,12 @@ public class WalletTest extends TestWithWallet {
         wallet.receiveFromBlock(tx4, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, i);
 
         // ... that puts us in category 1 (no fee!)
-        SendRequest request6 = SendRequest.to(notMyAddr, CENT.add(tenThousand).subtract(SATOSHI));
+        SendRequest request6 = SendRequest.to(notMyAddr, cent.add(tenThousand).subtract(satoshi));
         wallet.completeTx(request6);
-        assertEquals(ZERO, request6.tx.getFee());
+        assertEquals(zero, request6.tx.getFee());
         assertEquals(2, request6.tx.getOutputs().size()); // We should have a change output
 
-        SendRequest.DEFAULT_FEE_PER_KB = Transaction.REFERENCE_DEFAULT_MIN_TX_FEE;
+        SendRequest.DEFAULT_FEE_PER_KB = minTxFee;
     }
 
     @Test
@@ -2167,16 +2165,16 @@ public class WalletTest extends TestWithWallet {
         // Generate a ton of small outputs
         StoredBlock block = new StoredBlock(makeSolvedTestBlock(blockStore, notMyAddr), BigInteger.ONE, 1);
         int i = 0;
-        while (i <= CENT.divide(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.multiply(10))) {
-            Transaction tx = createFakeTxWithChangeAddress(params, Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.multiply(10), myAddress, notMyAddr);
+        while (i <= cent.divide(minTxFee.multiply(10))) {
+            Transaction tx = createFakeTxWithChangeAddress(params, minTxFee.multiply(10), myAddress, notMyAddr);
             tx.getInput(0).setSequenceNumber(i++); // Keep every transaction unique
             wallet.receiveFromBlock(tx, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, i);
         }
 
         // The selector will choose 2 with MIN_TX_FEE fee
-        SendRequest request1 = SendRequest.to(notMyAddr, CENT.add(SATOSHI));
+        SendRequest request1 = SendRequest.to(notMyAddr, cent.add(satoshi));
         wallet.completeTx(request1);
-        assertEquals(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE, request1.tx.getFee());
+        assertEquals(minTxFee, request1.tx.getFee());
         assertEquals(request1.tx.getInputs().size(), i); // We should have spent all inputs
         assertEquals(2, request1.tx.getOutputs().size()); // and gotten change back
     }
@@ -2187,21 +2185,21 @@ public class WalletTest extends TestWithWallet {
 
         // Prepare wallet to spend
         StoredBlock block = new StoredBlock(makeSolvedTestBlock(blockStore, notMyAddr), BigInteger.ONE, 1);
-        Transaction tx = createFakeTx(params, COIN, myAddress);
+        Transaction tx = createFakeTx(params, coin, myAddress);
         wallet.receiveFromBlock(tx, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 0);
 
         // Create a transaction
-        SendRequest request = SendRequest.to(notMyAddr, CENT);
-        request.feePerKb = Transaction.REFERENCE_DEFAULT_MIN_TX_FEE;
+        SendRequest request = SendRequest.to(notMyAddr, cent);
+        request.feePerKb = minTxFee;
         wallet.completeTx(request);
-        assertEquals(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE, request.tx.getFee());
+        assertEquals(minTxFee, request.tx.getFee());
     }
 
     @Test
     public void lowerThanDefaultFee() throws InsufficientMoneyException {
-        Coin fee = Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.divide(10);
-        receiveATransactionAmount(wallet, myAddress, Coin.COIN);
-        SendRequest req = SendRequest.to(myAddress, Coin.CENT);
+        Coin fee = minTxFee.divide(10);
+        receiveATransactionAmount(wallet, myAddress, coin);
+        SendRequest req = SendRequest.to(myAddress, cent);
         req.feePerKb = fee;
         wallet.completeTx(req);
         assertEquals(fee, req.tx.getFee());
@@ -2217,9 +2215,9 @@ public class WalletTest extends TestWithWallet {
 
     @Test
     public void higherThanDefaultFee() throws InsufficientMoneyException {
-        Coin fee = Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.multiply(10);
-        receiveATransactionAmount(wallet, myAddress, Coin.COIN);
-        SendRequest req = SendRequest.to(myAddress, Coin.CENT);
+        Coin fee = minTxFee.multiply(10);
+        receiveATransactionAmount(wallet, myAddress, coin);
+        SendRequest req = SendRequest.to(myAddress, cent);
         req.feePerKb = fee;
         wallet.completeTx(req);
         assertEquals(fee, req.tx.getFee());
@@ -2244,41 +2242,41 @@ public class WalletTest extends TestWithWallet {
 
         // Generate a ton of small outputs
         StoredBlock block = new StoredBlock(makeSolvedTestBlock(blockStore, notMyAddr), BigInteger.ONE, 1);
-        Transaction tx = createFakeTx(params, COIN, myAddress);
+        Transaction tx = createFakeTx(params, coin, myAddress);
         wallet.receiveFromBlock(tx, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 0);
-        Transaction tx2 = createFakeTx(params, CENT, myAddress);
+        Transaction tx2 = createFakeTx(params, cent, myAddress);
         wallet.receiveFromBlock(tx2, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 1);
-        Transaction tx3 = createFakeTx(params, SATOSHI, myAddress);
+        Transaction tx3 = createFakeTx(params, satoshi, myAddress);
         wallet.receiveFromBlock(tx3, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 2);
 
         // Create a transaction who's max size could be up to 1000 (if signatures were maximum size)
-        SendRequest request1 = SendRequest.to(notMyAddr, COIN.subtract(CENT.multiply(17)));
+        SendRequest request1 = SendRequest.to(notMyAddr, coin.subtract(cent.multiply(17)));
         for (int i = 0; i < 16; i++)
-            request1.tx.addOutput(CENT, notMyAddr);
-        request1.tx.addOutput(new TransactionOutput(params, request1.tx, CENT, new byte[16]));
-        request1.fee = SATOSHI;
-        request1.feePerKb = SATOSHI;
-        // We get a category 2 using COIN+CENT
-        // It spends COIN + 1(fee) and because its output is thus < CENT, we have to pay MIN_TX_FEE
-        // When it tries category 1, its too large and requires COIN + 2 (fee)
-        // This adds the next input, but still has a < CENT output which means it cant reach category 1
+            request1.tx.addOutput(cent, notMyAddr);
+        request1.tx.addOutput(new TransactionOutput(params, request1.tx, cent, new byte[16]));
+        request1.fee = satoshi;
+        request1.feePerKb = satoshi;
+        // We get a category 2 using coin+cent
+        // It spends coin + 1(fee) and because its output is thus < cent, we have to pay MIN_TX_FEE
+        // When it tries category 1, its too large and requires coin + 2 (fee)
+        // This adds the next input, but still has a < cent output which means it cant reach category 1
         wallet.completeTx(request1);
-        assertEquals(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE, request1.tx.getFee());
+        assertEquals(minTxFee, request1.tx.getFee());
         assertEquals(2, request1.tx.getInputs().size());
 
         // We then add one more satoshi output to the wallet
-        Transaction tx4 = createFakeTx(params, SATOSHI, myAddress);
+        Transaction tx4 = createFakeTx(params, satoshi, myAddress);
         wallet.receiveFromBlock(tx4, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 3);
 
         // Create a transaction who's max size could be up to 1000 (if signatures were maximum size)
-        SendRequest request2 = SendRequest.to(notMyAddr, COIN.subtract(CENT.multiply(17)));
+        SendRequest request2 = SendRequest.to(notMyAddr, coin.subtract(cent.multiply(17)));
         for (int i = 0; i < 16; i++)
-            request2.tx.addOutput(CENT, notMyAddr);
-        request2.tx.addOutput(new TransactionOutput(params, request2.tx, CENT, new byte[16]));
-        request2.feePerKb = SATOSHI;
+            request2.tx.addOutput(cent, notMyAddr);
+        request2.tx.addOutput(new TransactionOutput(params, request2.tx, cent, new byte[16]));
+        request2.feePerKb = satoshi;
         // The process is the same as above, but now we can complete category 1 with one more input, and pay a fee of 2
         wallet.completeTx(request2);
-        assertEquals(SATOSHI.multiply(2), request2.tx.getFee());
+        assertEquals(satoshi.multiply(2), request2.tx.getFee());
         assertEquals(4, request2.tx.getInputs().size());
     }
 
@@ -2292,47 +2290,47 @@ public class WalletTest extends TestWithWallet {
 
         // Generate a few outputs to us
         StoredBlock block = new StoredBlock(makeSolvedTestBlock(blockStore, notMyAddr), BigInteger.ONE, 1);
-        Transaction tx1 = createFakeTx(params, COIN, myAddress);
+        Transaction tx1 = createFakeTx(params, coin, myAddress);
         wallet.receiveFromBlock(tx1, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 0);
-        Transaction tx2 = createFakeTx(params, COIN, myAddress); assertTrue(!tx1.getHash().equals(tx2.getHash()));
+        Transaction tx2 = createFakeTx(params, coin, myAddress); assertTrue(!tx1.getHash().equals(tx2.getHash()));
         wallet.receiveFromBlock(tx2, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 1);
-        Transaction tx3 = createFakeTx(params, CENT, myAddress);
+        Transaction tx3 = createFakeTx(params, cent, myAddress);
         wallet.receiveFromBlock(tx3, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 2);
 
-        SendRequest request1 = SendRequest.to(notMyAddr, CENT);
-        // If we just complete as-is, we will use one of the COIN outputs to get higher priority,
+        SendRequest request1 = SendRequest.to(notMyAddr, cent);
+        // If we just complete as-is, we will use one of the coin outputs to get higher priority,
         // resulting in a change output
         request1.shuffleOutputs = false;
         wallet.completeTx(request1);
         assertEquals(1, request1.tx.getInputs().size());
         assertEquals(2, request1.tx.getOutputs().size());
-        assertEquals(CENT, request1.tx.getOutput(0).getValue());
-        assertEquals(COIN.subtract(CENT), request1.tx.getOutput(1).getValue());
+        assertEquals(cent, request1.tx.getOutput(0).getValue());
+        assertEquals(coin.subtract(cent), request1.tx.getOutput(1).getValue());
 
-        // Now create an identical request2 and add an unsigned spend of the CENT output
-        SendRequest request2 = SendRequest.to(notMyAddr, CENT);
+        // Now create an identical request2 and add an unsigned spend of the cent output
+        SendRequest request2 = SendRequest.to(notMyAddr, cent);
         request2.tx.addInput(tx3.getOutput(0));
         // Now completeTx will result in one input, one output
         wallet.completeTx(request2);
         assertEquals(1, request2.tx.getInputs().size());
         assertEquals(1, request2.tx.getOutputs().size());
-        assertEquals(CENT, request2.tx.getOutput(0).getValue());
+        assertEquals(cent, request2.tx.getOutput(0).getValue());
         // Make sure it was properly signed
         request2.tx.getInput(0).getScriptSig().correctlySpends(request2.tx, 0, tx3.getOutput(0).getScriptPubKey());
 
-        // However, if there is no connected output, we will grab a COIN output anyway and add the CENT to fee
-        SendRequest request3 = SendRequest.to(notMyAddr, CENT);
+        // However, if there is no connected output, we will grab a coin output anyway and add the cent to fee
+        SendRequest request3 = SendRequest.to(notMyAddr, cent);
         request3.tx.addInput(new TransactionInput(params, request3.tx, new byte[]{}, new TransactionOutPoint(params, 0, tx3.getHash())));
-        // Now completeTx will result in two inputs, two outputs and a fee of a CENT
+        // Now completeTx will result in two inputs, two outputs and a fee of a cent
         // Note that it is simply assumed that the inputs are correctly signed, though in fact the first is not
         request3.shuffleOutputs = false;
         wallet.completeTx(request3);
         assertEquals(2, request3.tx.getInputs().size());
         assertEquals(2, request3.tx.getOutputs().size());
-        assertEquals(CENT, request3.tx.getOutput(0).getValue());
-        assertEquals(COIN.subtract(CENT), request3.tx.getOutput(1).getValue());
+        assertEquals(cent, request3.tx.getOutput(0).getValue());
+        assertEquals(coin.subtract(cent), request3.tx.getOutput(1).getValue());
 
-        SendRequest request4 = SendRequest.to(notMyAddr, CENT);
+        SendRequest request4 = SendRequest.to(notMyAddr, cent);
         request4.tx.addInput(tx3.getOutput(0));
         // Now if we manually sign it, completeTx will not replace our signature
         wallet.signTransaction(request4);
@@ -2340,7 +2338,7 @@ public class WalletTest extends TestWithWallet {
         wallet.completeTx(request4);
         assertEquals(1, request4.tx.getInputs().size());
         assertEquals(1, request4.tx.getOutputs().size());
-        assertEquals(CENT, request4.tx.getOutput(0).getValue());
+        assertEquals(cent, request4.tx.getOutput(0).getValue());
         assertArrayEquals(scriptSig, request4.tx.getInput(0).getScriptBytes());
     }
 
@@ -2367,7 +2365,7 @@ public class WalletTest extends TestWithWallet {
             }
         });
 
-        sendMoneyToWallet(COIN, AbstractBlockChain.NewBlockType.BEST_CHAIN);
+        sendMoneyToWallet(coin, AbstractBlockChain.NewBlockType.BEST_CHAIN);
         log.info("Wait for user thread");
         Threading.waitForUserCode();
         log.info("... and test flag.");
@@ -2380,13 +2378,13 @@ public class WalletTest extends TestWithWallet {
         StoredBlock block = new StoredBlock(makeSolvedTestBlock(blockStore, new ECKey().toAddress(params)), BigInteger.ONE, 1);
         Random rng = new Random();
         for (int i = 0; i < rng.nextInt(100) + 1; i++) {
-            Transaction tx = createFakeTx(params, Coin.valueOf(rng.nextInt((int) COIN.value)), myAddress);
+            Transaction tx = createFakeTx(params, Coin.valueOf(rng.nextInt((int) coin.value)), myAddress);
             wallet.receiveFromBlock(tx, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, i);
         }
         SendRequest request = SendRequest.emptyWallet(new ECKey().toAddress(params));
         wallet.completeTx(request);
         wallet.commitTx(request.tx);
-        assertEquals(ZERO, wallet.getBalance());
+        assertEquals(zero, wallet.getBalance());
     }
 
     @Test
@@ -2394,43 +2392,43 @@ public class WalletTest extends TestWithWallet {
         Address outputKey = new ECKey().toAddress(params);
         // Add exactly 0.01
         StoredBlock block = new StoredBlock(makeSolvedTestBlock(blockStore, outputKey), BigInteger.ONE, 1);
-        Transaction tx = createFakeTx(params, CENT, myAddress);
+        Transaction tx = createFakeTx(params, cent, myAddress);
         wallet.receiveFromBlock(tx, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 0);
         SendRequest request = SendRequest.emptyWallet(outputKey);
         wallet.completeTx(request);
         assertEquals(Wallet.SendRequest.DEFAULT_FEE_PER_KB, request.tx.getFee());
         wallet.commitTx(request.tx);
-        assertEquals(ZERO, wallet.getBalance());
-        assertEquals(CENT, request.tx.getOutput(0).getValue());
+        assertEquals(zero, wallet.getBalance());
+        assertEquals(cent, request.tx.getOutput(0).getValue());
 
         // Add 1 confirmed cent and 1 unconfirmed cent. Verify only one cent is emptied because of the coin selection
         // policies that are in use by default.
         block = new StoredBlock(makeSolvedTestBlock(blockStore, outputKey), BigInteger.ONE, 1);
-        tx = createFakeTx(params, CENT, myAddress);
+        tx = createFakeTx(params, cent, myAddress);
         wallet.receiveFromBlock(tx, block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 0);
-        tx = createFakeTx(params, CENT, myAddress);
+        tx = createFakeTx(params, cent, myAddress);
         wallet.receivePending(tx, null);
         request = SendRequest.emptyWallet(outputKey);
         wallet.completeTx(request);
         assertEquals(Wallet.SendRequest.DEFAULT_FEE_PER_KB, request.tx.getFee());
         wallet.commitTx(request.tx);
-        assertEquals(ZERO, wallet.getBalance());
-        assertEquals(CENT, request.tx.getOutput(0).getValue());
+        assertEquals(zero, wallet.getBalance());
+        assertEquals(cent, request.tx.getOutput(0).getValue());
 
         // Add just under 0.01
         StoredBlock block2 = new StoredBlock(block.getHeader().createNextBlock(outputKey), BigInteger.ONE, 2);
-        tx = createFakeTx(params, CENT.subtract(SATOSHI), myAddress);
+        tx = createFakeTx(params, cent.subtract(satoshi), myAddress);
         wallet.receiveFromBlock(tx, block2, AbstractBlockChain.NewBlockType.BEST_CHAIN, 0);
         request = SendRequest.emptyWallet(outputKey);
         wallet.completeTx(request);
-        assertEquals(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE, request.tx.getFee());
+        assertEquals(minTxFee, request.tx.getFee());
         wallet.commitTx(request.tx);
-        assertEquals(ZERO, wallet.getBalance());
-        assertEquals(CENT.subtract(SATOSHI).subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE), request.tx.getOutput(0).getValue());
+        assertEquals(zero, wallet.getBalance());
+        assertEquals(cent.subtract(satoshi).subtract(minTxFee), request.tx.getOutput(0).getValue());
 
         // Add an unsendable value
         StoredBlock block3 = new StoredBlock(block2.getHeader().createNextBlock(outputKey), BigInteger.ONE, 3);
-        Coin outputValue = Transaction.MIN_NONDUST_OUTPUT.add(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE).subtract(SATOSHI);
+        Coin outputValue = minNonDustTxOutput.add(minTxFee).subtract(satoshi);
         tx = createFakeTx(params, outputValue, myAddress);
         wallet.receiveFromBlock(tx, block3, AbstractBlockChain.NewBlockType.BEST_CHAIN, 0);
         try {
@@ -2441,9 +2439,9 @@ public class WalletTest extends TestWithWallet {
         request = SendRequest.emptyWallet(outputKey);
         request.ensureMinRequiredFee = false;
         wallet.completeTx(request);
-        assertEquals(ZERO, request.tx.getFee());
+        assertEquals(zero, request.tx.getFee());
         wallet.commitTx(request.tx);
-        assertEquals(ZERO, wallet.getBalance());
+        assertEquals(zero, wallet.getBalance());
         assertEquals(outputValue, request.tx.getOutput(0).getValue());
     }
 
@@ -2461,9 +2459,9 @@ public class WalletTest extends TestWithWallet {
         key2.setCreationTimeSeconds(Utils.currentTimeSeconds() - 86400);
         wallet.importKey(key1);
         wallet.importKey(key2);
-        sendMoneyToWallet(wallet, CENT, key1.toAddress(params), AbstractBlockChain.NewBlockType.BEST_CHAIN);
-        sendMoneyToWallet(wallet, CENT, key2.toAddress(params), AbstractBlockChain.NewBlockType.BEST_CHAIN);
-        sendMoneyToWallet(wallet, CENT, key2.toAddress(params), AbstractBlockChain.NewBlockType.BEST_CHAIN);
+        sendMoneyToWallet(wallet, cent, key1.toAddress(params), AbstractBlockChain.NewBlockType.BEST_CHAIN);
+        sendMoneyToWallet(wallet, cent, key2.toAddress(params), AbstractBlockChain.NewBlockType.BEST_CHAIN);
+        sendMoneyToWallet(wallet, cent, key2.toAddress(params), AbstractBlockChain.NewBlockType.BEST_CHAIN);
         Date compromiseTime = Utils.now();
         assertEquals(0, broadcaster.size());
         assertFalse(wallet.isKeyRotating(key1));
@@ -2475,9 +2473,9 @@ public class WalletTest extends TestWithWallet {
         wallet.doMaintenance(null, true);
 
         Transaction tx = broadcaster.waitForTransactionAndSucceed();
-        final Coin THREE_CENTS = CENT.add(CENT).add(CENT);
-        assertEquals(THREE_CENTS, tx.getValueSentFromMe(wallet));
-        assertEquals(THREE_CENTS.subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE), tx.getValueSentToMe(wallet));
+        final Coin THREE_centS = cent.add(cent).add(cent);
+        assertEquals(THREE_centS, tx.getValueSentFromMe(wallet));
+        assertEquals(THREE_centS.subtract(minTxFee), tx.getValueSentToMe(wallet));
         // TX sends to one of our addresses (for now we ignore married wallets).
         final Address toAddress = tx.getOutput(0).getScriptPubKey().getToAddress(params);
         final ECKey rotatingToKey = wallet.findKeyFromPubHash(toAddress.getHash160());
@@ -2488,19 +2486,19 @@ public class WalletTest extends TestWithWallet {
         sendMoneyToWallet(tx, AbstractBlockChain.NewBlockType.BEST_CHAIN);
 
         // Now receive some more money to the newly derived address via a new block and check that nothing happens.
-        sendMoneyToWallet(wallet, CENT, toAddress, AbstractBlockChain.NewBlockType.BEST_CHAIN);
+        sendMoneyToWallet(wallet, cent, toAddress, AbstractBlockChain.NewBlockType.BEST_CHAIN);
         assertTrue(wallet.doMaintenance(null, true).get().isEmpty());
         assertEquals(0, broadcaster.size());
 
         // Receive money via a new block on key1 and ensure it shows up as a maintenance task.
-        sendMoneyToWallet(wallet, CENT, key1.toAddress(params), AbstractBlockChain.NewBlockType.BEST_CHAIN);
+        sendMoneyToWallet(wallet, cent, key1.toAddress(params), AbstractBlockChain.NewBlockType.BEST_CHAIN);
         wallet.doMaintenance(null, true);
         tx = broadcaster.waitForTransactionAndSucceed();
         assertNotNull(wallet.findKeyFromPubHash(tx.getOutput(0).getScriptPubKey().getPubKeyHash()));
         log.info("Unexpected thing: {}", tx);
         assertEquals(1, tx.getInputs().size());
         assertEquals(1, tx.getOutputs().size());
-        assertEquals(CENT.subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE), tx.getOutput(0).getValue());
+        assertEquals(cent.subtract(minTxFee), tx.getOutput(0).getValue());
 
         assertEquals(Transaction.Purpose.KEY_ROTATION, tx.getPurpose());
 
@@ -2523,8 +2521,8 @@ public class WalletTest extends TestWithWallet {
     }
 
     private Wallet roundTrip(Wallet wallet) throws UnreadableWalletException {
-        Protos.Wallet protos = new WalletProtobufSerializer().walletToProto(wallet);
-        return new WalletProtobufSerializer().readWallet(params, null, protos);
+        Protos.Wallet protos = new WalletProtobufSerializer(params.getCoinDefinition()).walletToProto(wallet);
+        return new WalletProtobufSerializer(params.getCoinDefinition()).readWallet(params, null, protos);
     }
 
     @Test
@@ -2534,8 +2532,8 @@ public class WalletTest extends TestWithWallet {
         wallet = new Wallet(params);
         ECKey key1 = wallet.freshReceiveKey();
         ECKey key2 = wallet.freshReceiveKey();
-        sendMoneyToWallet(wallet, CENT, key1.toAddress(params), AbstractBlockChain.NewBlockType.BEST_CHAIN);
-        sendMoneyToWallet(wallet, CENT, key2.toAddress(params), AbstractBlockChain.NewBlockType.BEST_CHAIN);
+        sendMoneyToWallet(wallet, cent, key1.toAddress(params), AbstractBlockChain.NewBlockType.BEST_CHAIN);
+        sendMoneyToWallet(wallet, cent, key2.toAddress(params), AbstractBlockChain.NewBlockType.BEST_CHAIN);
         DeterministicKey watchKey1 = wallet.getWatchingKey();
 
         // A day later, we get compromised.
@@ -2579,7 +2577,7 @@ public class WalletTest extends TestWithWallet {
         wallet.upgradeToDeterministic(null);
         DeterministicKey badWatchingKey = wallet.getWatchingKey();
         assertEquals(badKey.getCreationTimeSeconds(), badWatchingKey.getCreationTimeSeconds());
-        sendMoneyToWallet(wallet, CENT, badWatchingKey.toAddress(params), AbstractBlockChain.NewBlockType.BEST_CHAIN);
+        sendMoneyToWallet(wallet, cent, badWatchingKey.toAddress(params), AbstractBlockChain.NewBlockType.BEST_CHAIN);
 
         // Now we set the rotation time to the time we started making good keys. This should create a new HD chain.
         wallet.setKeyRotationTime(goodKey.getCreationTimeSeconds());
@@ -2616,7 +2614,7 @@ public class WalletTest extends TestWithWallet {
         Utils.setMockClock();
         Utils.rollMockClock(86400);
         for (int i = 0; i < 800; i++) {
-            sendMoneyToWallet(wallet, CENT, address, AbstractBlockChain.NewBlockType.BEST_CHAIN);
+            sendMoneyToWallet(wallet, cent, address, AbstractBlockChain.NewBlockType.BEST_CHAIN);
         }
 
         MockTransactionBroadcaster broadcaster = new MockTransactionBroadcaster(wallet);
@@ -2679,7 +2677,7 @@ public class WalletTest extends TestWithWallet {
     public void completeTxPartiallySignedMarriedThrowsByDefault() throws Exception {
         createMarriedWallet(2, 2, false);
         myAddress = wallet.currentAddress(KeyChain.KeyPurpose.RECEIVE_FUNDS);
-        sendMoneyToWallet(wallet, COIN, myAddress, AbstractBlockChain.NewBlockType.BEST_CHAIN);
+        sendMoneyToWallet(wallet, coin, myAddress, AbstractBlockChain.NewBlockType.BEST_CHAIN);
 
         Wallet.SendRequest req = Wallet.SendRequest.emptyWallet(new ECKey().toAddress(params));
         wallet.completeTx(req);
@@ -2689,7 +2687,7 @@ public class WalletTest extends TestWithWallet {
         // create married wallet without signer
         createMarriedWallet(2, 2, false);
         myAddress = wallet.currentAddress(KeyChain.KeyPurpose.RECEIVE_FUNDS);
-        sendMoneyToWallet(wallet, COIN, myAddress, AbstractBlockChain.NewBlockType.BEST_CHAIN);
+        sendMoneyToWallet(wallet, coin, myAddress, AbstractBlockChain.NewBlockType.BEST_CHAIN);
 
         ECKey dest = new ECKey();
         Wallet.SendRequest req = Wallet.SendRequest.emptyWallet(dest.toAddress(params));
@@ -2717,9 +2715,9 @@ public class WalletTest extends TestWithWallet {
         // Send three transactions, with one being an address type and the other being a raw CHECKSIG type pubkey only,
         // and the final one being a key we do have. We expect the first two inputs to be dummy values and the last
         // to be signed correctly.
-        Transaction t1 = sendMoneyToWallet(wallet, CENT, pub.toAddress(params), AbstractBlockChain.NewBlockType.BEST_CHAIN);
-        Transaction t2 = sendMoneyToWallet(wallet, CENT, pub, AbstractBlockChain.NewBlockType.BEST_CHAIN);
-        Transaction t3 = sendMoneyToWallet(wallet, CENT, priv2, AbstractBlockChain.NewBlockType.BEST_CHAIN);
+        Transaction t1 = sendMoneyToWallet(wallet, cent, pub.toAddress(params), AbstractBlockChain.NewBlockType.BEST_CHAIN);
+        Transaction t2 = sendMoneyToWallet(wallet, cent, pub, AbstractBlockChain.NewBlockType.BEST_CHAIN);
+        Transaction t3 = sendMoneyToWallet(wallet, cent, priv2, AbstractBlockChain.NewBlockType.BEST_CHAIN);
 
         ECKey dest = new ECKey();
         Wallet.SendRequest req = Wallet.SendRequest.emptyWallet(dest.toAddress(params));
@@ -2743,7 +2741,7 @@ public class WalletTest extends TestWithWallet {
     @Test
     public void riskAnalysis() throws Exception {
         // Send a tx that is considered risky to the wallet, verify it doesn't show up in the balances.
-        final Transaction tx = createFakeTx(params, COIN, myAddress);
+        final Transaction tx = createFakeTx(params, coin, myAddress);
         final AtomicBoolean bool = new AtomicBoolean();
         wallet.setRiskAnalyzer(new RiskAnalysis.Analyzer() {
             @Override
@@ -2762,16 +2760,16 @@ public class WalletTest extends TestWithWallet {
             }
         });
         assertTrue(wallet.isPendingTransactionRelevant(tx));
-        assertEquals(Coin.ZERO, wallet.getBalance());
-        assertEquals(Coin.ZERO, wallet.getBalance(Wallet.BalanceType.ESTIMATED));
+        assertEquals(zero, wallet.getBalance());
+        assertEquals(zero, wallet.getBalance(Wallet.BalanceType.ESTIMATED));
         wallet.receivePending(tx, null);
-        assertEquals(Coin.ZERO, wallet.getBalance());
-        assertEquals(Coin.ZERO, wallet.getBalance(Wallet.BalanceType.ESTIMATED));
+        assertEquals(zero, wallet.getBalance());
+        assertEquals(zero, wallet.getBalance(Wallet.BalanceType.ESTIMATED));
         assertTrue(bool.get());
         // Confirm it in the same manner as how Bloom filtered blocks do. Verify it shows up.
         StoredBlock block = createFakeBlock(blockStore, tx).storedBlock;
         wallet.notifyTransactionIsInBlock(tx.getHash(), block, AbstractBlockChain.NewBlockType.BEST_CHAIN, 1);
-        assertEquals(COIN, wallet.getBalance());
+        assertEquals(coin, wallet.getBalance());
     }
 
     @Test
@@ -2877,7 +2875,7 @@ public class WalletTest extends TestWithWallet {
         wallet.addFollowingAccountKeys(ImmutableList.of(partnerKey));
 
         myAddress = wallet.currentAddress(KeyChain.KeyPurpose.RECEIVE_FUNDS);
-        sendMoneyToWallet(wallet, COIN, myAddress, AbstractBlockChain.NewBlockType.BEST_CHAIN);
+        sendMoneyToWallet(wallet, coin, myAddress, AbstractBlockChain.NewBlockType.BEST_CHAIN);
 
         ECKey dest = new ECKey();
         Wallet.SendRequest req = Wallet.SendRequest.emptyWallet(dest.toAddress(params));
@@ -2888,7 +2886,7 @@ public class WalletTest extends TestWithWallet {
     @Test
     public void sendRequestExchangeRate() throws Exception {
         receiveATransaction(wallet, myAddress);
-        SendRequest sendRequest = SendRequest.to(myAddress, Coin.COIN);
+        SendRequest sendRequest = SendRequest.to(myAddress, coin);
         sendRequest.exchangeRate = new ExchangeRate(Fiat.parseFiat("EUR", "500"));
         wallet.completeTx(sendRequest);
         assertEquals(sendRequest.exchangeRate, sendRequest.tx.getExchangeRate());
@@ -2897,7 +2895,7 @@ public class WalletTest extends TestWithWallet {
     @Test
     public void sendRequestMemo() throws Exception {
         receiveATransaction(wallet, myAddress);
-        SendRequest sendRequest = SendRequest.to(myAddress, Coin.COIN);
+        SendRequest sendRequest = SendRequest.to(myAddress, coin);
         sendRequest.memo = "memo";
         wallet.completeTx(sendRequest);
         assertEquals(sendRequest.memo, sendRequest.tx.getMemo());

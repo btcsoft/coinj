@@ -16,10 +16,8 @@
 
 package org.bitcoinj.utils;
 
-import static org.bitcoinj.core.Coin.CENT;
-import static org.bitcoinj.core.Coin.COIN;
-import static org.bitcoinj.core.Coin.SATOSHI;
-import static org.bitcoinj.core.Coin.ZERO;
+import static org.bitcoinj.core.Coin.satoshi;
+import static org.bitcoinj.core.Coin.zero;
 import static org.junit.Assert.assertEquals;
 
 import java.util.Locale;
@@ -34,10 +32,10 @@ public class MonetaryFormatTest {
 
     @Test
     public void testSigns() throws Exception {
-        assertEquals("-1.00", NO_CODE.format(Coin.COIN.negate()).toString());
-        assertEquals("@1.00", NO_CODE.negativeSign('@').format(Coin.COIN.negate()).toString());
-        assertEquals("1.00", NO_CODE.format(Coin.COIN).toString());
-        assertEquals("+1.00", NO_CODE.positiveSign('+').format(Coin.COIN).toString());
+        assertEquals("-1.00", NO_CODE.format(Coin.coin().negate()).toString());
+        assertEquals("@1.00", NO_CODE.negativeSign('@').format(Coin.coin().negate()).toString());
+        assertEquals("1.00", NO_CODE.format(Coin.coin()).toString());
+        assertEquals("+1.00", NO_CODE.positiveSign('+').format(Coin.coin()).toString());
     }
 
     @Test
@@ -47,8 +45,8 @@ public class MonetaryFormatTest {
 
     @Test
     public void testDecimalMark() throws Exception {
-        assertEquals("1.00", NO_CODE.format(Coin.COIN).toString());
-        assertEquals("1,00", NO_CODE.decimalMark(',').format(Coin.COIN).toString());
+        assertEquals("1.00", NO_CODE.format(Coin.coin()).toString());
+        assertEquals("1,00", NO_CODE.decimalMark(',').format(Coin.coin()).toString());
     }
 
     @Test
@@ -63,18 +61,18 @@ public class MonetaryFormatTest {
 
     @Test
     public void btcRounding() throws Exception {
-        assertEquals("0", format(ZERO, 0, 0));
-        assertEquals("0.00", format(ZERO, 0, 2));
+        assertEquals("0", format(zero(), 0, 0));
+        assertEquals("0.00", format(zero(), 0, 2));
 
-        assertEquals("1", format(COIN, 0, 0));
-        assertEquals("1.0", format(COIN, 0, 1));
-        assertEquals("1.00", format(COIN, 0, 2, 2));
-        assertEquals("1.00", format(COIN, 0, 2, 2, 2));
-        assertEquals("1.00", format(COIN, 0, 2, 2, 2, 2));
-        assertEquals("1.000", format(COIN, 0, 3));
-        assertEquals("1.0000", format(COIN, 0, 4));
+        assertEquals("1", format(Coin.coin(), 0, 0));
+        assertEquals("1.0", format(Coin.coin(), 0, 1));
+        assertEquals("1.00", format(Coin.coin(), 0, 2, 2));
+        assertEquals("1.00", format(Coin.coin(), 0, 2, 2, 2));
+        assertEquals("1.00", format(Coin.coin(), 0, 2, 2, 2, 2));
+        assertEquals("1.000", format(Coin.coin(), 0, 3));
+        assertEquals("1.0000", format(Coin.coin(), 0, 4));
 
-        final Coin justNot = COIN.subtract(SATOSHI);
+        final Coin justNot = Coin.coin().subtract(satoshi());
         assertEquals("1", format(justNot, 0, 0));
         assertEquals("1.0", format(justNot, 0, 1));
         assertEquals("1.00", format(justNot, 0, 2, 2));
@@ -83,7 +81,7 @@ public class MonetaryFormatTest {
         assertEquals("1.000", format(justNot, 0, 3));
         assertEquals("1.0000", format(justNot, 0, 4));
 
-        final Coin slightlyMore = COIN.add(SATOSHI);
+        final Coin slightlyMore = Coin.coin().add(satoshi());
         assertEquals("1", format(slightlyMore, 0, 0));
         assertEquals("1.0", format(slightlyMore, 0, 1));
         assertEquals("1.00", format(slightlyMore, 0, 2, 2));
@@ -92,7 +90,7 @@ public class MonetaryFormatTest {
         assertEquals("1.000", format(slightlyMore, 0, 3));
         assertEquals("1.0000", format(slightlyMore, 0, 4));
 
-        final Coin pivot = COIN.add(SATOSHI.multiply(5));
+        final Coin pivot = Coin.coin().add(satoshi().multiply(5));
         assertEquals("1.00000005", format(pivot, 0, 8));
         assertEquals("1.00000005", format(pivot, 0, 7, 1));
         assertEquals("1.0000001", format(pivot, 0, 7));
@@ -109,17 +107,17 @@ public class MonetaryFormatTest {
 
     @Test
     public void mBtcRounding() throws Exception {
-        assertEquals("0", format(ZERO, 3, 0));
-        assertEquals("0.00", format(ZERO, 3, 2));
+        assertEquals("0", format(zero(), 3, 0));
+        assertEquals("0.00", format(zero(), 3, 2));
 
-        assertEquals("1000", format(COIN, 3, 0));
-        assertEquals("1000.0", format(COIN, 3, 1));
-        assertEquals("1000.00", format(COIN, 3, 2));
-        assertEquals("1000.00", format(COIN, 3, 2, 2));
-        assertEquals("1000.000", format(COIN, 3, 3));
-        assertEquals("1000.0000", format(COIN, 3, 4));
+        assertEquals("1000", format(Coin.coin(), 3, 0));
+        assertEquals("1000.0", format(Coin.coin(), 3, 1));
+        assertEquals("1000.00", format(Coin.coin(), 3, 2));
+        assertEquals("1000.00", format(Coin.coin(), 3, 2, 2));
+        assertEquals("1000.000", format(Coin.coin(), 3, 3));
+        assertEquals("1000.0000", format(Coin.coin(), 3, 4));
 
-        final Coin justNot = COIN.subtract(SATOSHI.multiply(10));
+        final Coin justNot = Coin.coin().subtract(satoshi().multiply(10));
         assertEquals("1000", format(justNot, 3, 0));
         assertEquals("1000.0", format(justNot, 3, 1));
         assertEquals("1000.00", format(justNot, 3, 2));
@@ -127,7 +125,7 @@ public class MonetaryFormatTest {
         assertEquals("1000.000", format(justNot, 3, 3));
         assertEquals("999.9999", format(justNot, 3, 4));
 
-        final Coin slightlyMore = COIN.add(SATOSHI.multiply(10));
+        final Coin slightlyMore = Coin.coin().add(satoshi().multiply(10));
         assertEquals("1000", format(slightlyMore, 3, 0));
         assertEquals("1000.0", format(slightlyMore, 3, 1));
         assertEquals("1000.00", format(slightlyMore, 3, 2));
@@ -135,7 +133,7 @@ public class MonetaryFormatTest {
         assertEquals("1000.0001", format(slightlyMore, 3, 2, 2));
         assertEquals("1000.0001", format(slightlyMore, 3, 4));
 
-        final Coin pivot = COIN.add(SATOSHI.multiply(50));
+        final Coin pivot = Coin.coin().add(satoshi().multiply(50));
         assertEquals("1000.0005", format(pivot, 3, 4));
         assertEquals("1000.0005", format(pivot, 3, 3, 1));
         assertEquals("1000.001", format(pivot, 3, 3));
@@ -151,27 +149,27 @@ public class MonetaryFormatTest {
 
     @Test
     public void uBtcRounding() throws Exception {
-        assertEquals("0", format(ZERO, 6, 0));
-        assertEquals("0.00", format(ZERO, 6, 2));
+        assertEquals("0", format(zero(), 6, 0));
+        assertEquals("0.00", format(zero(), 6, 2));
 
-        assertEquals("1000000", format(COIN, 6, 0));
-        assertEquals("1000000", format(COIN, 6, 0, 2));
-        assertEquals("1000000.0", format(COIN, 6, 1));
-        assertEquals("1000000.00", format(COIN, 6, 2));
+        assertEquals("1000000", format(Coin.coin(), 6, 0));
+        assertEquals("1000000", format(Coin.coin(), 6, 0, 2));
+        assertEquals("1000000.0", format(Coin.coin(), 6, 1));
+        assertEquals("1000000.00", format(Coin.coin(), 6, 2));
 
-        final Coin justNot = COIN.subtract(SATOSHI);
+        final Coin justNot = Coin.coin().subtract(satoshi());
         assertEquals("1000000", format(justNot, 6, 0));
         assertEquals("999999.99", format(justNot, 6, 0, 2));
         assertEquals("1000000.0", format(justNot, 6, 1));
         assertEquals("999999.99", format(justNot, 6, 2));
 
-        final Coin slightlyMore = COIN.add(SATOSHI);
+        final Coin slightlyMore = Coin.coin().add(satoshi());
         assertEquals("1000000", format(slightlyMore, 6, 0));
         assertEquals("1000000.01", format(slightlyMore, 6, 0, 2));
         assertEquals("1000000.0", format(slightlyMore, 6, 1));
         assertEquals("1000000.01", format(slightlyMore, 6, 2));
 
-        final Coin pivot = COIN.add(SATOSHI.multiply(5));
+        final Coin pivot = Coin.coin().add(satoshi().multiply(5));
         assertEquals("1000000.05", format(pivot, 6, 2));
         assertEquals("1000000.05", format(pivot, 6, 0, 2));
         assertEquals("1000000.1", format(pivot, 6, 1));
@@ -190,18 +188,19 @@ public class MonetaryFormatTest {
 
     @Test
     public void repeatOptionalDecimals() {
-        assertEquals("0.00000001", formatRepeat(SATOSHI, 2, 4));
-        assertEquals("0.00000010", formatRepeat(SATOSHI.multiply(10), 2, 4));
-        assertEquals("0.01", formatRepeat(CENT, 2, 4));
-        assertEquals("0.10", formatRepeat(CENT.multiply(10), 2, 4));
+        final Coin cent = Coin.cent();
+        assertEquals("0.00000001", formatRepeat(satoshi(), 2, 4));
+        assertEquals("0.00000010", formatRepeat(satoshi().multiply(10), 2, 4));
+        assertEquals("0.01", formatRepeat(cent, 2, 4));
+        assertEquals("0.10", formatRepeat(cent.multiply(10), 2, 4));
 
-        assertEquals("0", formatRepeat(SATOSHI, 2, 2));
-        assertEquals("0", formatRepeat(SATOSHI.multiply(10), 2, 2));
-        assertEquals("0.01", formatRepeat(CENT, 2, 2));
-        assertEquals("0.10", formatRepeat(CENT.multiply(10), 2, 2));
+        assertEquals("0", formatRepeat(satoshi(), 2, 2));
+        assertEquals("0", formatRepeat(satoshi().multiply(10), 2, 2));
+        assertEquals("0.01", formatRepeat(cent, 2, 2));
+        assertEquals("0.10", formatRepeat(cent.multiply(10), 2, 2));
 
-        assertEquals("0", formatRepeat(CENT, 2, 0));
-        assertEquals("0", formatRepeat(CENT.multiply(10), 2, 0));
+        assertEquals("0", formatRepeat(cent, 2, 0));
+        assertEquals("0", formatRepeat(cent.multiply(10), 2, 0));
     }
 
     private String formatRepeat(Coin coin, int decimals, int repetitions) {
@@ -210,30 +209,30 @@ public class MonetaryFormatTest {
 
     @Test
     public void standardCodes() throws Exception {
-        assertEquals("BTC 0.00", MonetaryFormat.BTC.format(Coin.ZERO).toString());
-        assertEquals("mBTC 0.00", MonetaryFormat.MBTC.format(Coin.ZERO).toString());
-        assertEquals("µBTC 0", MonetaryFormat.UBTC.format(Coin.ZERO).toString());
+        assertEquals("BTC 0.00", MonetaryFormat.BTC.code("BTC").format(Coin.zero()).toString());
+        assertEquals("mBTC 0.00", MonetaryFormat.MBTC.code("BTC").format(Coin.zero()).toString());
+        assertEquals("µBTC 0", MonetaryFormat.UBTC.code("BTC").format(Coin.zero()).toString());
     }
 
     @Test
     public void customCode() throws Exception {
-        assertEquals("dBTC 0", MonetaryFormat.UBTC.code(1, "dBTC").shift(1).format(Coin.ZERO).toString());
+        assertEquals("dBTC 0", MonetaryFormat.UBTC.code(1, "dBTC").shift(1).format(Coin.zero()).toString());
     }
 
     @Test
     public void codeOrientation() throws Exception {
-        assertEquals("BTC 0.00", MonetaryFormat.BTC.prefixCode().format(Coin.ZERO).toString());
-        assertEquals("0.00 BTC", MonetaryFormat.BTC.postfixCode().format(Coin.ZERO).toString());
+        assertEquals("BTC 0.00", MonetaryFormat.BTC.code("BTC").prefixCode().format(Coin.zero()).toString());
+        assertEquals("0.00 BTC", MonetaryFormat.BTC.code("BTC").postfixCode().format(Coin.zero()).toString());
     }
 
     @Test
     public void codeSeparator() throws Exception {
-        assertEquals("BTC@0.00", MonetaryFormat.BTC.codeSeparator('@').format(Coin.ZERO).toString());
+        assertEquals("BTC@0.00", MonetaryFormat.BTC.code("BTC").codeSeparator('@').format(Coin.zero()).toString());
     }
 
     @Test(expected = NumberFormatException.class)
     public void missingCode() throws Exception {
-        MonetaryFormat.UBTC.shift(1).format(Coin.ZERO);
+        MonetaryFormat.UBTC.code("BTC").shift(1).format(Coin.zero());
     }
 
     @Test
@@ -246,32 +245,32 @@ public class MonetaryFormatTest {
 
     @Test
     public void parse() throws Exception {
-        assertEquals(Coin.COIN, NO_CODE.parse("1"));
-        assertEquals(Coin.COIN, NO_CODE.parse("1."));
-        assertEquals(Coin.COIN, NO_CODE.parse("1.0"));
-        assertEquals(Coin.COIN, NO_CODE.decimalMark(',').parse("1,0"));
-        assertEquals(Coin.COIN, NO_CODE.parse("01.0000000000"));
-        assertEquals(Coin.COIN, NO_CODE.positiveSign('+').parse("+1.0"));
-        assertEquals(Coin.COIN.negate(), NO_CODE.parse("-1"));
-        assertEquals(Coin.COIN.negate(), NO_CODE.parse("-1.0"));
+        assertEquals(Coin.coin(), NO_CODE.parse("1"));
+        assertEquals(Coin.coin(), NO_CODE.parse("1."));
+        assertEquals(Coin.coin(), NO_CODE.parse("1.0"));
+        assertEquals(Coin.coin(), NO_CODE.decimalMark(',').parse("1,0"));
+        assertEquals(Coin.coin(), NO_CODE.parse("01.0000000000"));
+        assertEquals(Coin.coin(), NO_CODE.positiveSign('+').parse("+1.0"));
+        assertEquals(Coin.coin().negate(), NO_CODE.parse("-1"));
+        assertEquals(Coin.coin().negate(), NO_CODE.parse("-1.0"));
 
-        assertEquals(Coin.CENT, NO_CODE.parse(".01"));
+        assertEquals(Coin.cent(), NO_CODE.parse(".01"));
 
-        assertEquals(Coin.MILLICOIN, MonetaryFormat.MBTC.parse("1"));
-        assertEquals(Coin.MILLICOIN, MonetaryFormat.MBTC.parse("1.0"));
-        assertEquals(Coin.MILLICOIN, MonetaryFormat.MBTC.parse("01.0000000000"));
-        assertEquals(Coin.MILLICOIN, MonetaryFormat.MBTC.positiveSign('+').parse("+1.0"));
-        assertEquals(Coin.MILLICOIN.negate(), MonetaryFormat.MBTC.parse("-1"));
-        assertEquals(Coin.MILLICOIN.negate(), MonetaryFormat.MBTC.parse("-1.0"));
+        assertEquals(Coin.milliCoin(), MonetaryFormat.MBTC.parse("1"));
+        assertEquals(Coin.milliCoin(), MonetaryFormat.MBTC.parse("1.0"));
+        assertEquals(Coin.milliCoin(), MonetaryFormat.MBTC.parse("01.0000000000"));
+        assertEquals(Coin.milliCoin(), MonetaryFormat.MBTC.positiveSign('+').parse("+1.0"));
+        assertEquals(Coin.milliCoin().negate(), MonetaryFormat.MBTC.parse("-1"));
+        assertEquals(Coin.milliCoin().negate(), MonetaryFormat.MBTC.parse("-1.0"));
 
-        assertEquals(Coin.MICROCOIN, MonetaryFormat.UBTC.parse("1"));
-        assertEquals(Coin.MICROCOIN, MonetaryFormat.UBTC.parse("1.0"));
-        assertEquals(Coin.MICROCOIN, MonetaryFormat.UBTC.parse("01.0000000000"));
-        assertEquals(Coin.MICROCOIN, MonetaryFormat.UBTC.positiveSign('+').parse("+1.0"));
-        assertEquals(Coin.MICROCOIN.negate(), MonetaryFormat.UBTC.parse("-1"));
-        assertEquals(Coin.MICROCOIN.negate(), MonetaryFormat.UBTC.parse("-1.0"));
+        assertEquals(Coin.microCoin(), MonetaryFormat.UBTC.parse("1"));
+        assertEquals(Coin.microCoin(), MonetaryFormat.UBTC.parse("1.0"));
+        assertEquals(Coin.microCoin(), MonetaryFormat.UBTC.parse("01.0000000000"));
+        assertEquals(Coin.microCoin(), MonetaryFormat.UBTC.positiveSign('+').parse("+1.0"));
+        assertEquals(Coin.microCoin().negate(), MonetaryFormat.UBTC.parse("-1"));
+        assertEquals(Coin.microCoin().negate(), MonetaryFormat.UBTC.parse("-1.0"));
 
-        assertEquals(Coin.CENT, NO_CODE.withLocale(new Locale("hi", "IN")).parse(".०१")); // Devanagari
+        assertEquals(Coin.cent(), NO_CODE.withLocale(new Locale("hi", "IN")).parse(".०१")); // Devanagari
     }
 
     @Test(expected = NumberFormatException.class)

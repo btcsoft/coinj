@@ -151,6 +151,36 @@ public class ScriptChunk {
         return buf.toString();
     }
 
+    public String satoshiStyleToString() {
+        if (!isOpCode()) {
+            if (data == null) {
+                return Integer.toString(Script.decodeFromOpN(opcode));
+            } else if (data.length <= 4) {
+                return Long.toString(dataToLong(data));
+            } else {
+                return Utils.HEX.encode(data);
+            }
+        } else {
+            return getPushDataNameSatoshiStyle(opcode);
+        }
+    }
+
+    private static long dataToLong(byte[] data) {
+        if (data.length == 0)
+            return 0;
+
+        long result = 0;
+        for (int i = 0; i < data.length; ++i)
+            result |= ((long) data[i]) << 8*i;
+
+        // If the input array's most significant byte is 0x80, remove it from
+        // the result's msb and return a negative.
+        if ((data[data.length - 1] & 0x80) != 0)
+            return -(result & ~(0x80L << (8 * (data.length - 1))));
+
+        return result;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

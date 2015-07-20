@@ -27,7 +27,7 @@ import java.util.List;
  * or the set of transaction outputs created/destroyed when the block is
  * connected.
  */
-public class StoredUndoableBlock implements Serializable {
+public class StoredUndoableBlock implements Serializable, Hashable {
     private static final long serialVersionUID = 5127353027086786117L;
     
     Sha256Hash blockHash;
@@ -67,6 +67,7 @@ public class StoredUndoableBlock implements Serializable {
     /**
      * Get the hash of the represented block
      */
+    @Override
     public Sha256Hash getHash() {
         return blockHash;
     }

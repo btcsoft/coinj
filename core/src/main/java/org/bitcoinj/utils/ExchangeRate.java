@@ -39,7 +39,7 @@ public class ExchangeRate implements Serializable {
 
     /** Construct exchange rate. One coin is worth this amount of fiat. */
     public ExchangeRate(Fiat fiat) {
-        this.coin = Coin.COIN;
+        this.coin = Coin.coin();
         this.fiat = fiat;
     }
 

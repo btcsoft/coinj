@@ -40,7 +40,7 @@ public class FetchBlock {
         PeerGroup peerGroup = new PeerGroup(params, chain);
         peerGroup.startAsync();
         peerGroup.awaitRunning();
-        PeerAddress addr = new PeerAddress(InetAddress.getLocalHost(), params.getPort());
+        PeerAddress addr = new PeerAddress(InetAddress.getLocalHost(), params.getPort(), params.protocolVersion);
         peerGroup.addAddress(addr);
         peerGroup.waitForPeers(1).get();
         Peer peer = peerGroup.getConnectedPeers().get(0);

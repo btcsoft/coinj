@@ -41,6 +41,9 @@ import static java.lang.Math.*;
  * gets a noisy picture of what transactions are relevant to your wallet.</p>
  */
 public class BloomFilter extends Message {
+
+    private static final long serialVersionUID = -5869206009310988460L;
+
     /** The BLOOM_UPDATE_* constants control when the bloom filter is auto-updated by the peer using
         it as a filter, either never, for all outputs or only for pay-2-pubkey outputs (default) */
     public enum BloomUpdate {

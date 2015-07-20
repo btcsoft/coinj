@@ -17,12 +17,18 @@
 
 package org.bitcoinj.core;
 
-import org.bitcoinj.script.*;
-import org.slf4j.*;
+import org.bitcoinj.script.Script;
+import org.bitcoinj.script.ScriptBuilder;
+import org.coinj.api.CoinDefinition;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import javax.annotation.*;
-import java.io.*;
-import java.util.*;
+import javax.annotation.Nullable;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
+import java.io.Serializable;
+import java.util.Arrays;
 
 import static com.google.common.base.Preconditions.*;
 
@@ -83,7 +89,7 @@ public class TransactionOutput extends ChildMessage implements Serializable {
 
     /**
      * Creates an output that sends 'value' to the given address (public key hash). The amount should be created with
-     * something like {@link Utils#valueOf(int, int)}. Typically you would use
+     * something like {@link Coin#valueOf(int, int)}. Typically you would use
      * {@link Transaction#addOutput(Coin, Address)} instead of creating a TransactionOutput directly.
      */
     public TransactionOutput(NetworkParameters params, @Nullable Transaction parent, Coin value, Address to) {
@@ -92,7 +98,7 @@ public class TransactionOutput extends ChildMessage implements Serializable {
 
     /**
      * Creates an output that sends 'value' to the given public key using a simple CHECKSIG script (no addresses). The
-     * amount should be created with something like {@link Utils#valueOf(int, int)}. Typically you would use
+     * amount should be created with something like {@link Coin#valueOf(int, int)}. Typically you would use
      * {@link Transaction#addOutput(Coin, ECKey)} instead of creating an output directly.
      */
     public TransactionOutput(NetworkParameters params, @Nullable Transaction parent, Coin value, ECKey to) {
@@ -103,8 +109,8 @@ public class TransactionOutput extends ChildMessage implements Serializable {
         super(params);
         // Negative values obviously make no sense, except for -1 which is used as a sentinel value when calculating
         // SIGHASH_SINGLE signatures, so unfortunately we have to allow that here.
-        checkArgument(value.signum() >= 0 || value.equals(Coin.NEGATIVE_SATOSHI), "Negative values not allowed");
-        checkArgument(value.compareTo(NetworkParameters.MAX_MONEY) < 0, "Values larger than MAX_MONEY not allowed");
+        checkArgument(value.signum() >= 0 || value.equals(Coin.negativeSatoshi(params.getCoinDefinition())), "Negative values not allowed");
+        checkArgument(value.compareTo(params.maxMoney) < 0, "Values larger than MAX_MONEY not allowed");
         this.value = value.value;
         this.scriptBytes = scriptBytes;
         setParent(parent);
@@ -126,11 +132,11 @@ public class TransactionOutput extends ChildMessage implements Serializable {
      *
      * @param networkParameters needed to specify an address
      * @return null, if the output script is not the form <i>OP_DUP OP_HASH160 <PubkeyHash> OP_EQUALVERIFY OP_CHECKSIG</i>,
-     * i.e., not P2PKH
-     * @return an address made out of the public key hash
+     *         i.e., not P2PKH
+     *         an address made out of the public key hash
      */
     @Nullable
-    public Address getAddressFromP2PKHScript(NetworkParameters networkParameters) throws ScriptException{
+    public Address getAddressFromP2PKHScript(NetworkParameters networkParameters) throws ScriptException {
         if (getScriptPubKey().isSentToAddress())
             return getScriptPubKey().getToAddress(networkParameters);
 
@@ -150,7 +156,7 @@ public class TransactionOutput extends ChildMessage implements Serializable {
      * @return an address that belongs to the redeem script
      */
     @Nullable
-    public Address getAddressFromP2SH(NetworkParameters networkParameters) throws ScriptException{
+    public Address getAddressFromP2SH(NetworkParameters networkParameters) throws ScriptException {
         if (getScriptPubKey().isPayToScriptHash())
             return getScriptPubKey().getToAddress(networkParameters);
 
@@ -224,7 +230,7 @@ public class TransactionOutput extends ChildMessage implements Serializable {
      * a safe fee-per-kb by default.</p>
      *
      * @param feePerKbRequired The fee required per kilobyte. Note that this is the same as the reference client's -minrelaytxfee * 3
-     *                         If you want a safe default, use {@link Transaction#REFERENCE_DEFAULT_MIN_TX_FEE}*3
+     *                         If you want a safe default, use {@link CoinDefinition#getDefaultMinTransactionFee()}*3
      */
     public Coin getMinNonDustValue(Coin feePerKbRequired) {
         // A typical output is 33 bytes (pubkey hash + opcodes) and requires an input of 148 bytes to spend so we add
@@ -234,16 +240,17 @@ public class TransactionOutput extends ChildMessage implements Serializable {
         // size of data needed to satisfy all different script types, or just hard code 33 below.
         final long size = this.bitcoinSerialize().length + 148;
         Coin[] nonDustAndRemainder = feePerKbRequired.multiply(size).divideAndRemainder(1000);
-        return nonDustAndRemainder[1].equals(Coin.ZERO) ? nonDustAndRemainder[0] : nonDustAndRemainder[0].add(Coin.SATOSHI);
+        return nonDustAndRemainder[1].equals(Coin.zero(params)) ? nonDustAndRemainder[0] : nonDustAndRemainder[0].add(Coin.satoshi(params));
     }
 
     /**
      * Returns the minimum value for this output to be considered "not dust", i.e. the transaction will be relayable
      * and mined by default miners. For normal pay to address outputs, this is 546 satoshis, the same as
-     * {@link Transaction#MIN_NONDUST_OUTPUT}.
+     * {@link CoinDefinition#getDustLimit()}.
      */
     public Coin getMinNonDustValue() {
-        return getMinNonDustValue(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE.multiply(3));
+        final CoinDefinition def = params.getCoinDefinition();
+        return getMinNonDustValue(Coin.valueOf(def.getDefaultMinTransactionFee(), def).multiply(3));
     }
 
     /**

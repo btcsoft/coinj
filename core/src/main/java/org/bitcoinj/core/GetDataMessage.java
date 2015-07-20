@@ -49,15 +49,15 @@ public class GetDataMessage extends ListMessage {
     }
 
     public void addTransaction(Sha256Hash hash) {
-        addItem(new InventoryItem(InventoryItem.Type.Transaction, hash));
+        addItem(InventoryItem.createTransactionItem(hash));
     }
 
     public void addBlock(Sha256Hash hash) {
-        addItem(new InventoryItem(InventoryItem.Type.Block, hash));
+        addItem(InventoryItem.createBlockItem(hash));
     }
 
     public void addFilteredBlock(Sha256Hash hash) {
-        addItem(new InventoryItem(InventoryItem.Type.FilteredBlock, hash));
+        addItem(InventoryItem.createFilteredBlockItem(hash));
     }
 
     public Sha256Hash getHashOf(int i) {

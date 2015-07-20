@@ -1,6 +1,7 @@
 /*
  * Copyright 2011 Google Inc.
  * Copyright 2014 Andreas Schildbach
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +18,13 @@
 
 package org.bitcoinj.core;
 
-import org.bitcoinj.utils.ListenerRegistration;
-import org.bitcoinj.utils.Threading;
+import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import org.bitcoinj.utils.ListenerRegistration;
+import org.bitcoinj.utils.Threading;
+import org.coinj.api.CoinDefinition;
+import org.coinj.api.TransactionConfidenceExtension;
 
 import javax.annotation.Nullable;
 import java.io.Serializable;
@@ -28,7 +32,8 @@ import java.util.ListIterator;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 
-import static com.google.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 
 /**
  * <p>A TransactionConfidence object tracks data you can use to make a confidence decision about a transaction.
@@ -59,7 +64,106 @@ import static com.google.common.base.Preconditions.*;
  * To make a copy that won't be changed, use {@link org.bitcoinj.core.TransactionConfidence#duplicate()}.
  */
 public class TransactionConfidence implements Serializable {
+
     private static final long serialVersionUID = 4577920141400556444L;
+
+    public static final int VALUE_CONFIDENCE_BUILDING = 1;
+    public static final int VALUE_CONFIDENCE_PENDING = 2;
+    public static final int VALUE_CONFIDENCE_DEAD = 4;
+    public static final int VALUE_CONFIDENCE_UNKNOWN = 0;
+
+    /* Describes the state of the transaction in general terms. Properties can be read to learn specifics. */
+    public static final class ConfidenceType implements Serializable {
+
+        private static final long serialVersionUID = 1L;
+
+        /** If BUILDING, then the transaction is included in the best chain and your confidence in it is increasing. */
+        public static final ConfidenceType BUILDING = new ConfidenceType(VALUE_CONFIDENCE_BUILDING);
+        /**
+         * If PENDING, then the transaction is unconfirmed and should be included shortly, as long as it is being
+         * announced and is considered valid by the network. A pending transaction will be announced if the containing
+         * wallet has been attached to a live {@link PeerGroup} using {@link PeerGroup#addWallet(Wallet)}.
+         * You can estimate how likely the transaction is to be included by connecting to a bunch of nodes then measuring
+         * how many announce it, using {@link org.bitcoinj.core.TransactionConfidence#numBroadcastPeers()}.
+         * Or if you saw it from a trusted peer, you can assume it's valid and will get mined sooner or later as well.
+         */
+        public static final ConfidenceType PENDING = new ConfidenceType(VALUE_CONFIDENCE_PENDING);
+        /**
+         * If DEAD, then it means the transaction won't confirm unless there is another re-org,
+         * because some other transaction is spending one of its inputs. Such transactions should be alerted to the user
+         * so they can take action, eg, suspending shipment of goods if they are a merchant.
+         * It can also mean that a coinbase transaction has been made dead from it being moved onto a side chain.
+         */
+        public static final ConfidenceType DEAD = new ConfidenceType(VALUE_CONFIDENCE_DEAD);
+        /**
+         * If a transaction hasn't been broadcast yet, or there's no record of it, its confidence is UNKNOWN.
+         */
+        public static final ConfidenceType UNKNOWN = new ConfidenceType(VALUE_CONFIDENCE_UNKNOWN);
+
+        public static ConfidenceType createExtension(int value) {
+            Preconditions.checkArgument(value != VALUE_CONFIDENCE_BUILDING
+                    && value != VALUE_CONFIDENCE_PENDING
+                    && value != VALUE_CONFIDENCE_DEAD
+                    && value != VALUE_CONFIDENCE_UNKNOWN, "Illegal value %s; already used", value);
+            return new ConfidenceType(value);
+        }
+
+        public final int value;
+
+        private ConfidenceType(int value) {
+            this.value = value;
+        }
+
+        public boolean isBuilding() {
+            return this.equals(BUILDING);
+        }
+
+        public boolean isPending() {
+            return this.equals(PENDING);
+        }
+
+        public boolean isDead() {
+            return this.equals(DEAD);
+        }
+
+        public boolean isUnknown() {
+            return this.equals(UNKNOWN);
+        }
+
+        public boolean isStandard() {
+            return isBuilding() || isPending() || isDead() || isUnknown();
+        }
+
+        public String getName(TransactionConfidenceExtension confidenceExtension) {
+            if (isBuilding()) {
+                return "BUILDING";
+            } else if (isPending()) {
+                return "PENDING";
+            } else if (isDead()) {
+                return "DEAD";
+            } else if (isUnknown()) {
+                return "UNKNOWN";
+            } else {
+                final String confidenceTypeName = confidenceExtension.getConfidenceTypeName(this);
+                if (confidenceTypeName == null) {
+                    return toString();
+                }
+                return confidenceTypeName;
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            return this == o
+                    || (!(o == null || getClass() != o.getClass()) && value == ((ConfidenceType) o).value);
+        }
+
+        @Override
+        public int hashCode() {
+            return value;
+        }
+
+    }
 
     /**
      * The peers that have announced the transaction to us. Network nodes don't have stable identities, so we use
@@ -75,48 +179,12 @@ public class TransactionConfidence implements Serializable {
     // The depth of the transaction on the best chain in blocks. An unconfirmed block has depth 0.
     private int depth;
 
-    /** Describes the state of the transaction in general terms. Properties can be read to learn specifics. */
-    public enum ConfidenceType {
-        /** If BUILDING, then the transaction is included in the best chain and your confidence in it is increasing. */
-        BUILDING(1),
-
-        /**
-         * If PENDING, then the transaction is unconfirmed and should be included shortly, as long as it is being
-         * announced and is considered valid by the network. A pending transaction will be announced if the containing
-         * wallet has been attached to a live {@link PeerGroup} using {@link PeerGroup#addWallet(Wallet)}.
-         * You can estimate how likely the transaction is to be included by connecting to a bunch of nodes then measuring
-         * how many announce it, using {@link org.bitcoinj.core.TransactionConfidence#numBroadcastPeers()}.
-         * Or if you saw it from a trusted peer, you can assume it's valid and will get mined sooner or later as well.
-         */
-        PENDING(2),
-
-        /**
-         * If DEAD, then it means the transaction won't confirm unless there is another re-org,
-         * because some other transaction is spending one of its inputs. Such transactions should be alerted to the user
-         * so they can take action, eg, suspending shipment of goods if they are a merchant.
-         * It can also mean that a coinbase transaction has been made dead from it being moved onto a side chain.
-         */
-        DEAD(4),
-
-        /**
-         * If a transaction hasn't been broadcast yet, or there's no record of it, its confidence is UNKNOWN.
-         */
-        UNKNOWN(0);
-        
-        private int value;
-        ConfidenceType(int value) {
-            this.value = value;
-        }
-        
-        public int getValue() {
-            return value;
-        }
-    }
-
     private ConfidenceType confidenceType = ConfidenceType.UNKNOWN;
     private int appearedAtChainHeight = -1;
     // The transaction that double spent this one, if any.
     private Transaction overridingTransaction;
+
+    private final TransactionConfidenceExtension confidenceExtension;
 
     /**
      * Information about where the transaction was first seen (network, sent direct from peer, created by ourselves).
@@ -133,11 +201,20 @@ public class TransactionConfidence implements Serializable {
     }
     private Source source = Source.UNKNOWN;
 
-    public TransactionConfidence(Transaction tx) {
+    public TransactionConfidence(Transaction tx, TransactionConfidenceExtension extension) {
         // Assume a default number of peers for our set.
         broadcastBy = new CopyOnWriteArrayList<PeerAddress>();
         listeners = new CopyOnWriteArrayList<ListenerRegistration<Listener>>();
         transaction = tx;
+        confidenceExtension = extension;
+    }
+
+    public TransactionConfidence(Transaction tx, CoinDefinition definition) {
+        // Assume a default number of peers for our set.
+        broadcastBy = new CopyOnWriteArrayList<PeerAddress>();
+        listeners = new CopyOnWriteArrayList<ListenerRegistration<Listener>>();
+        transaction = tx;
+        confidenceExtension = definition.createTransactionConfidenceExtension(this);
     }
 
     /**
@@ -209,13 +286,26 @@ public class TransactionConfidence implements Serializable {
         return ListenerRegistration.removeFromList(listener, listeners);
     }
 
+    public TransactionConfidenceExtension getConfidenceExtension() {
+        return confidenceExtension;
+    }
+
+    public synchronized boolean isTransactionMature(int spendableDepth) {
+        final ConfidenceType type = getConfidenceType();
+
+        return (type.equals(ConfidenceType.BUILDING) && depth >= spendableDepth)
+                || confidenceExtension.isMatureConfidenceType(type)
+                || (confidenceExtension.haveSpecialMaturityConditions(type) && confidenceExtension.specialMaturityConditions(type));
+    }
+
     /**
      * Returns the chain height at which the transaction appeared if confidence type is BUILDING.
      * @throws IllegalStateException if the confidence type is not BUILDING.
      */
     public synchronized int getAppearedAtChainHeight() {
-        if (getConfidenceType() != ConfidenceType.BUILDING)
-            throw new IllegalStateException("Confidence type is " + getConfidenceType() + ", not BUILDING");
+        final ConfidenceType type = getConfidenceType();
+        checkState(type.equals(ConfidenceType.BUILDING) || confidenceExtension.isAllowedAppearanceAtChainHeight(type),
+                "Confidence type is %s, not BUILDING", type);
         return appearedAtChainHeight;
     }
 
@@ -228,7 +318,9 @@ public class TransactionConfidence implements Serializable {
             throw new IllegalArgumentException("appearedAtChainHeight out of range");
         this.appearedAtChainHeight = appearedAtChainHeight;
         this.depth = 1;
-        setConfidenceType(ConfidenceType.BUILDING);
+        if (confidenceExtension.allowBuildingTypeIfChainAppearanceSet(getConfidenceType())) {
+            setConfidenceType(ConfidenceType.BUILDING);
+        }
     }
 
     /**
@@ -243,13 +335,20 @@ public class TransactionConfidence implements Serializable {
      * transaction becomes available.
      */
     public synchronized void setConfidenceType(ConfidenceType confidenceType) {
-        if (confidenceType == this.confidenceType)
+        if (confidenceType.equals(this.confidenceType))
             return;
+
+        if (!confidenceType.isStandard()) {
+            if (!confidenceExtension.acknowledgeExtendedConfidenceType(confidenceType)) {
+                throw new IllegalArgumentException("confidenceType with value " + confidenceType.value + " unsupported by CoinDefinition");
+            }
+        }
+
         this.confidenceType = confidenceType;
-        if (confidenceType != ConfidenceType.DEAD) {
+        if (!confidenceType.equals(ConfidenceType.DEAD)) {
             overridingTransaction = null;
         }
-        if (confidenceType == ConfidenceType.PENDING) {
+        if (confidenceType.equals(ConfidenceType.PENDING) || confidenceExtension.mustDoDepthNullSettingAtSetTypeIfNotPending(confidenceType)) {
             depth = 0;
             appearedAtChainHeight = -1;
         }
@@ -267,8 +366,10 @@ public class TransactionConfidence implements Serializable {
     public synchronized boolean markBroadcastBy(PeerAddress address) {
         if (!broadcastBy.addIfAbsent(address))
             return false;  // Duplicate.
-        if (getConfidenceType() == ConfidenceType.UNKNOWN) {
-            this.confidenceType = ConfidenceType.PENDING;
+        if (getConfidenceType().equals(ConfidenceType.UNKNOWN)) {
+            this.confidenceType = (confidenceExtension.isExtendedConfidenceRelevant(transaction))
+                    ? confidenceExtension.markBroadcastByExtendedConfidenceType()
+                    : ConfidenceType.PENDING;
         }
         return true;
     }
@@ -304,19 +405,22 @@ public class TransactionConfidence implements Serializable {
             else
                 builder.append(" peer. ");
         }
-        switch (getConfidenceType()) {
-            case UNKNOWN:
+        switch (getConfidenceType().value) {
+            case VALUE_CONFIDENCE_UNKNOWN:
                 builder.append("Unknown confidence level.");
                 break;
-            case DEAD:
+            case VALUE_CONFIDENCE_DEAD:
                 builder.append("Dead: overridden by double spend and will not confirm.");
                 break;
-            case PENDING:
+            case VALUE_CONFIDENCE_PENDING:
                 builder.append("Pending/unconfirmed.");
                 break;
-            case BUILDING:
+            case VALUE_CONFIDENCE_BUILDING:
                 builder.append(String.format("Appeared in best chain at height %d, depth %d.",
                         getAppearedAtChainHeight(), getDepthInBlocks()));
+                break;
+            default:
+                confidenceExtension.appendToStringBuilder(builder, this);
                 break;
         }
         return builder.toString();
@@ -360,7 +464,7 @@ public class TransactionConfidence implements Serializable {
      * @throws IllegalStateException if confidence type is not OVERRIDDEN_BY_DOUBLE_SPEND.
      */
     public synchronized Transaction getOverridingTransaction() {
-        if (getConfidenceType() != ConfidenceType.DEAD)
+        if (!getConfidenceType().equals(ConfidenceType.DEAD))
             throw new IllegalStateException("Confidence type is " + getConfidenceType() +
                                             ", not OVERRIDDEN_BY_DOUBLE_SPEND");
         return overridingTransaction;
@@ -379,7 +483,7 @@ public class TransactionConfidence implements Serializable {
 
     /** Returns a copy of this object. Event listeners are not duplicated. */
     public synchronized TransactionConfidence duplicate() {
-        TransactionConfidence c = new TransactionConfidence(transaction);
+        TransactionConfidence c = new TransactionConfidence(transaction, confidenceExtension.copy());
         // There is no point in this sync block, it's just to help FindBugs.
         synchronized (c) {
             c.broadcastBy.addAll(broadcastBy);

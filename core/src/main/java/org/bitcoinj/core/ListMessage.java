@@ -1,5 +1,6 @@
 /**
  * Copyright 2011 Google Inc.
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +16,8 @@
  */
 
 package org.bitcoinj.core;
+
+import org.coinj.api.CoinDefinition;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -84,26 +87,8 @@ public abstract class ListMessage extends Message {
             if (cursor + InventoryItem.MESSAGE_LENGTH > payload.length) {
                 throw new ProtocolException("Ran off the end of the INV");
             }
-            int typeCode = (int) readUint32();
-            InventoryItem.Type type;
-            // See ppszTypeName in net.h
-            switch (typeCode) {
-                case 0:
-                    type = InventoryItem.Type.Error;
-                    break;
-                case 1:
-                    type = InventoryItem.Type.Transaction;
-                    break;
-                case 2:
-                    type = InventoryItem.Type.Block;
-                    break;
-                case 3:
-                    type = InventoryItem.Type.FilteredBlock;
-                    break;
-                default:
-                    throw new ProtocolException("Unknown CInv type: " + typeCode);
-            }
-            InventoryItem item = new InventoryItem(type, readHash());
+            final int typeCode = (int) readUint32();
+            final InventoryItem item = InventoryItem.createByTypeCode(readHash(), typeCode, params.getCoinDefinition());
             items.add(item);
         }
         payload = null;
@@ -112,9 +97,10 @@ public abstract class ListMessage extends Message {
     @Override
     public void bitcoinSerializeToStream(OutputStream stream) throws IOException {
         stream.write(new VarInt(items.size()).encode());
+        final CoinDefinition def = params.getCoinDefinition();
         for (InventoryItem i : items) {
             // Write out the type code.
-            Utils.uint32ToByteStreamLE(i.type.ordinal(), stream);
+            Utils.uint32ToByteStreamLE(InventoryItem.getTypeOrdinal(i.type, def), stream);
             // And now the hash.
             stream.write(Utils.reverseBytes(i.hash.getBytes()));
         }

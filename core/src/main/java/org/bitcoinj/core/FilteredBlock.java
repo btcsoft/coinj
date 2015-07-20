@@ -1,5 +1,6 @@
 /**
  * Copyright 2012 Matt Corallo
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,9 +25,9 @@ import java.util.*;
  * <p>A FilteredBlock is used to relay a block with its transactions filtered using a {@link BloomFilter}. It consists
  * of the block header and a {@link PartialMerkleTree} which contains the transactions which matched the filter.</p>
  */
-public class FilteredBlock extends Message {
+public class FilteredBlock extends Message implements Hashable {
+    private static final long serialVersionUID = -8776205636931037528L;
     /** The protocol version at which Bloom filtering started to be supported. */
-    public static final int MIN_PROTOCOL_VERSION = 70000;
     private Block header;
 
     private PartialMerkleTree merkleTree;
@@ -48,7 +49,7 @@ public class FilteredBlock extends Message {
 
     @Override
     public void bitcoinSerializeToStream(OutputStream stream) throws IOException {
-        if (header.transactions == null)
+        if (header.transactions == null) // no transaction or extension, only header
             header.bitcoinSerializeToStream(stream);
         else
             header.cloneAsHeader().bitcoinSerializeToStream(stream);

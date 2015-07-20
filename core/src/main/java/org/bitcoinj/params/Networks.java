@@ -1,5 +1,6 @@
 /*
  * Copyright 2014 Giannis Dzegoutanis
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +17,14 @@
 
 package org.bitcoinj.params;
 
-import org.bitcoinj.core.NetworkParameters;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
+import org.bitcoinj.core.NetworkParameters;
+import org.coinj.api.CoinDefinition;
 
 import java.util.Collection;
-import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Utility class that holds all the registered NetworkParameters types used for Address auto discovery.
@@ -31,32 +34,44 @@ import java.util.Set;
  */
 public class Networks {
     /** Registered networks */
-    private static Set<NetworkParameters> networks = ImmutableSet.of(TestNet3Params.get(), MainNetParams.get());
+    private static final ConcurrentHashMap<CoinDefinition, ImmutableSet<NetworkParameters>> networks =
+            new ConcurrentHashMap<CoinDefinition, ImmutableSet<NetworkParameters>>();
 
-    public static Set<NetworkParameters> get() {
-        return networks;
+    public static ImmutableSet<NetworkParameters> get(CoinDefinition def) {
+        Preconditions.checkNotNull(def);
+        final ImmutableSet<NetworkParameters> params = networks.get(def);
+        if (params == null) {
+            return register(def, Lists.newArrayList(TestNet3Params.get(), MainNetParams.get()));
+        }
+        return params;
     }
 
-    public static void register(NetworkParameters network) {
-        register(Lists.newArrayList(network));
+    public static void register(CoinDefinition definition, NetworkParameters network) {
+        register(definition, Lists.newArrayList(network));
     }
 
-    public static void register(Collection<? extends NetworkParameters> networks) {
+    public static synchronized ImmutableSet<NetworkParameters> register(CoinDefinition definition, Collection<? extends NetworkParameters> params) {
+        Preconditions.checkNotNull(params);
+        ImmutableSet<NetworkParameters> oldParams = networks.get(definition);
         ImmutableSet.Builder<NetworkParameters> builder = ImmutableSet.builder();
-        builder.addAll(Networks.networks);
-        builder.addAll(networks);
-        Networks.networks = builder.build();
+        if (oldParams != null) builder.addAll(oldParams);
+        builder.addAll(params);
+        final ImmutableSet<NetworkParameters> result = builder.build();
+        networks.put(definition, result);
+        return result;
     }
 
-    public static void unregister(NetworkParameters network) {
-        if (networks.contains(network)) {
+    public static synchronized void unregister(CoinDefinition definition, NetworkParameters network) {
+        final ImmutableSet<NetworkParameters> params = networks.get(definition);
+        if (params != null) {
             ImmutableSet.Builder<NetworkParameters> builder = ImmutableSet.builder();
-            for (NetworkParameters parameters : networks) {
-                if (parameters.equals(network))
+            for (NetworkParameters np : params) {
+                if (np.equals(network))
                     continue;
-                builder.add(parameters);
+                builder.add(np);
             }
-            networks = builder.build();
+            networks.put(definition, builder.build());
         }
     }
+
 }

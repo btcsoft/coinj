@@ -2,15 +2,16 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>org.bitcoinj</groupId>
-  <artifactId>bitcoinj-parent</artifactId>
-  <version>0.12.3</version>
+  <groupId>org.coinj</groupId>
+  <artifactId>multicoinj-parent</artifactId>
+  <version>0.12.3-1.0</version>
   <packaging>pom</packaging>
 
   <modules>
     <module>core</module>
     <module>examples</module>
     <module>tools</module>
+    <module>walletprotos</module>
   </modules>
 
   <parent>
@@ -20,14 +21,14 @@
   </parent>
 
   <scm>
-    <connection>scm:git:https://github.com/bitcoinj/bitcoinj</connection>
-    <developerConnection>scm:git:https://github.com/bitcoinj/bitcoinj</developerConnection>
-    <url>scm:git:https://github.com/bitcoinj/bitcoinj</url>
+    <connection>scm:git:https://github.com/btcsoft/coinj</connection>
+    <developerConnection>scm:git:https://github.com/btcsoft/coinj</developerConnection>
+    <url>scm:git:https://github.com/btcsoft/coinj</url>
   </scm>
 
-  <name>bitcoinj Parent</name>
-  <description>Provides the common configuration for the BitCoinJ modules</description>
-  <url>http://www.bitcoinj.org/</url>
+  <name>multicoinj Parent</name>
+  <description>Provides the common configuration for the multicoinj modules</description>
+  <url>http://www.btcsoft.com/</url>
 
   <licenses>
     <license>
@@ -69,8 +70,8 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
         <configuration>
-          <source>1.6</source>
-          <target>1.6</target>
+          <source>1.7</source>
+          <target>1.7</target>
           <showDeprecation>true</showDeprecation>
           <showWarnings>true</showWarnings>
         </configuration>

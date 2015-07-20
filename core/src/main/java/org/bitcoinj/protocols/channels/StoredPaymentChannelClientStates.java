@@ -93,7 +93,7 @@ public class StoredPaymentChannelClientStates implements WalletExtension {
 
     /** Returns the outstanding amount of money sent back to us for all channels to this server added together. */
     public Coin getBalanceForServer(Sha256Hash id) {
-        Coin balance = Coin.ZERO;
+        Coin balance = Coin.zero(containingWallet.getParams().getCoinDefinition());
         lock.lock();
         try {
             Set<StoredClientChannel> setChannels = mapChannels.get(id);
@@ -143,7 +143,7 @@ public class StoredPaymentChannelClientStates implements WalletExtension {
                 synchronized (channel) {
                     // Check if the channel is usable (has money, inactive) and if so, activate it.
                     log.info("Considering channel {} contract {}", channel.hashCode(), channel.contract.getHash());
-                    if (channel.close != null || channel.valueToMe.equals(Coin.ZERO)) {
+                    if (channel.close != null || channel.valueToMe.equals(channel.valueToMe.getZero())) {
                         log.info("  ... but is closed or empty");
                         continue;
                     }
@@ -262,8 +262,8 @@ public class StoredPaymentChannelClientStates implements WalletExtension {
             ClientState.StoredClientPaymentChannels.Builder builder = ClientState.StoredClientPaymentChannels.newBuilder();
             for (StoredClientChannel channel : mapChannels.values()) {
                 // First a few asserts to make sure things won't break
-                checkState(channel.valueToMe.signum() >= 0 && channel.valueToMe.compareTo(NetworkParameters.MAX_MONEY) < 0);
-                checkState(channel.refundFees.signum() >= 0 && channel.refundFees.compareTo(NetworkParameters.MAX_MONEY) < 0);
+                checkState(channel.valueToMe.signum() >= 0 && channel.valueToMe.compareTo(channel.valueToMe.getMaxMoney()) < 0);
+                checkState(channel.refundFees.signum() >= 0 && channel.refundFees.compareTo(channel.refundFees.getMaxMoney()) < 0);
                 checkNotNull(channel.myKey.getPrivKeyBytes());
                 checkState(channel.refund.getConfidence().getSource() == TransactionConfidence.Source.SELF);
                 final ClientState.StoredClientPaymentChannel.Builder value = ClientState.StoredClientPaymentChannel.newBuilder()

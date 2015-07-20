@@ -408,8 +408,7 @@ import java.util.regex.Pattern;
  * prefixes from micro to mega.  For example, denominational units of microcoins may be
  * specified by <code>µ฿</code>, <code>u฿</code>, <code>µB⃦</code>, <code>µɃ</code>,
  * <code>µBTC</code> or other appropriate permutations of those characters.  Additionally, if
- * either or both of a custom currency code or symbol is configured using {@link
- * BtcFormat.Builder#code()} or {@link BtcFormat.Builder.code()}, then such code or symbol will
+ * either or both of a custom currency code or symbol is configured using, then such code or symbol will
  * be recognized in addition to those recognized by default..
  *
  * <p>Instances of this class that recognize currency signs will recognize both currency
@@ -1247,7 +1246,6 @@ public abstract class BtcFormat extends Format {
      *  @param unitCount      the number of monetary units to be formatted
      *  @param scale          the denomination of those units as the decimal-place shift from coins
      *  @param minDecimals    the minimum number of fractional decimal places
-     *  @param fractiongroups the sizes of option fractional decimal-place groups
      */
     private static int calculateFractionPlaces(
         BigDecimal unitCount, int scale, int minDecimals, List<Integer> fractionGroups)
@@ -1537,9 +1535,8 @@ public abstract class BtcFormat extends Format {
     }}
 
     /** Return a representation of the pattern used by this instance for formatting and
-     *  parsing.  The format is similar to, but not the same as the format recognized by the
-     *  {@link Builder.pattern()} and {@link Builder.localizedPattern()} methods.  The pattern
-     *  returned by this method is localized, any currency signs expressed are literally, and
+     *  parsing.  The format is similar to, but not the same as the format recognized by the methods.
+     *  The pattern returned by this method is localized, any currency signs expressed are literally, and
      *  optional fractional decimal places are shown grouped in parentheses. */
     public String pattern() { synchronized(numberFormat) {
         StringBuffer groups = new StringBuffer();

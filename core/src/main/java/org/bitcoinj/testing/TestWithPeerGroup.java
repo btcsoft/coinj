@@ -56,7 +56,8 @@ public class TestWithPeerGroup extends TestWithNetworkConnections {
         super.setUp(blockStore);
 
         remoteVersionMessage = new VersionMessage(unitTestParams, 1);
-        remoteVersionMessage.localServices = VersionMessage.NODE_NETWORK;
+        final Integer nodeNetworkConstant = params.getCoinDefinition().getNodeNetworkConstant();
+        remoteVersionMessage.localServices = nodeNetworkConstant != null ? nodeNetworkConstant : 0;
         remoteVersionMessage.clientVersion = NotFoundMessage.MIN_PROTOCOL_VERSION;
         initPeerGroup();
     }

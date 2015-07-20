@@ -1,5 +1,6 @@
 /**
  * Copyright 2013 Google Inc.
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,24 +17,18 @@
 
 package org.bitcoinj.core;
 
-import org.bitcoinj.store.BlockStore;
-import org.bitcoinj.store.BlockStoreException;
-import org.bitcoinj.store.FullPrunedBlockStore;
 import com.google.common.base.Charsets;
 import com.google.common.hash.HashCode;
 import com.google.common.hash.Hasher;
 import com.google.common.hash.Hashing;
 import com.google.common.io.BaseEncoding;
-
+import org.bitcoinj.store.BlockStore;
+import org.bitcoinj.store.BlockStoreException;
+import org.bitcoinj.store.FullPrunedBlockStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedReader;
-import java.io.DataInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.security.DigestInputStream;
@@ -201,6 +196,14 @@ public class CheckpointManager {
         return dataHash;
     }
 
+    public TreeMap<Integer, StoredBlock> getCheckpoints() {
+        final TreeMap<Integer, StoredBlock> integerStoredBlockTreeMap = new TreeMap<Integer, StoredBlock>();
+        for (final Map.Entry<Long, StoredBlock> longStoredBlockEntry : checkpoints.entrySet()) {
+            integerStoredBlockTreeMap.put(longStoredBlockEntry.getKey().intValue(), longStoredBlockEntry.getValue());
+        }
+        return integerStoredBlockTreeMap;
+    }
+
     /**
      * <p>Convenience method that creates a CheckpointManager, loads the given data, gets the checkpoint for the given
      * time, then inserts it into the store and sets that to be the chain head. Useful when you have just created
@@ -210,6 +213,10 @@ public class CheckpointManager {
      */
     public static void checkpoint(NetworkParameters params, InputStream checkpoints, BlockStore store, long time)
             throws IOException, BlockStoreException {
+
+        if (!params.getCoinDefinition().isCheckpointingSupported())
+            return;
+
         checkNotNull(params);
         checkNotNull(store);
         checkArgument(!(store instanceof FullPrunedBlockStore), "You cannot use checkpointing with a full store.");

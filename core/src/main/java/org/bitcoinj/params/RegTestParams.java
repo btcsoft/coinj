@@ -1,5 +1,6 @@
 /*
  * Copyright 2013 Google Inc.
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,58 +17,63 @@
 
 package org.bitcoinj.params;
 
-import org.bitcoinj.core.Block;
-
-import java.math.BigInteger;
-
-import static com.google.common.base.Preconditions.checkState;
+import org.bitcoinj.core.NetworkParameters;
+import org.coinj.api.CoinDefinition;
+import org.coinj.api.NetworkMode;
 
 /**
  * Network parameters for the regression test mode of bitcoind in which all blocks are trivially solvable.
  */
-public class RegTestParams extends TestNet2Params {
-    private static final BigInteger MAX_TARGET = new BigInteger("7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16);
+public class RegTestParams extends NetworkParameters {
 
-    public RegTestParams() {
-        super();
-        interval = 10000;
-        maxTarget = MAX_TARGET;
-        subsidyDecreaseBlockCount = 150;
-        port = 18444;
-        id = ID_REGTEST;
+    private static final long serialVersionUID = -5587866430996561173L;
+
+    public RegTestParams(CoinDefinition coinDefinition) {
+        super(coinDefinition);
+        sharedConstruction(coinDefinition);
+    }
+    public RegTestParams(CoinDefinition coinDefinition, NetworkMode mode) {
+        super(coinDefinition, mode);
+        sharedConstruction(coinDefinition);
     }
 
-    @Override
-    public boolean allowEmptyPeerChain() {
-        return true;
+    private void sharedConstruction(CoinDefinition coinDefinition) {
+        standardNetworkId = CoinDefinition.REG_TEST_STANDARD;
+        id = coinDefinition.getIdRegTest();
+
+        fillProtectedValues();
     }
 
-    private static Block genesis;
+    static final class RegTestParamsFactory extends ParamsFactory<RegTestParams> {
 
-    @Override
-    public Block getGenesisBlock() {
-        synchronized (RegTestParams.class) {
-            if (genesis == null) {
-                genesis = super.getGenesisBlock();
-                genesis.setNonce(2);
-                genesis.setDifficultyTarget(0x207fFFFFL);
-                genesis.setTime(1296688602L);
-                checkState(genesis.getHashAsString().toLowerCase().equals("0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"));
-            }
-            return genesis;
+        @Override
+        public RegTestParams createParams(CoinDefinition coinDefinition) {
+            return new RegTestParams(coinDefinition);
         }
-    }
 
-    private static RegTestParams instance;
-    public static synchronized RegTestParams get() {
-        if (instance == null) {
-            instance = new RegTestParams();
+        @Override
+        public RegTestParams createParams(CoinDefinition coinDefinition, NetworkMode mode) {
+            return new RegTestParams(coinDefinition, mode);
         }
-        return instance;
+
     }
 
-    @Override
-    public String getPaymentProtocolId() {
-        return null;
+    private static final ParamsRegistry<RegTestParams> paramsRegistry = new ParamsRegistry<RegTestParams>(new RegTestParamsFactory());
+
+    public static RegTestParams get(CoinDefinition def) {
+        return paramsRegistry.get(def);
     }
+
+    public static RegTestParams get() {
+        return paramsRegistry.get();
+    }
+
+    public static RegTestParams get(CoinDefinition def, NetworkMode mode) {
+        return paramsRegistry.get(def, mode);
+    }
+
+    public static RegTestParams get(NetworkMode mode) {
+        return paramsRegistry.get(mode);
+    }
+
 }

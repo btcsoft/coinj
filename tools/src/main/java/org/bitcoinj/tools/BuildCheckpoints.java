@@ -17,28 +17,26 @@
 
 package org.bitcoinj.tools;
 
+import com.google.common.base.Charsets;
 import org.bitcoinj.core.*;
+import org.bitcoinj.net.discovery.DnsDiscovery;
 import org.bitcoinj.params.MainNetParams;
 import org.bitcoinj.store.BlockStore;
 import org.bitcoinj.store.MemoryBlockStore;
 import org.bitcoinj.utils.BriefLogFormatter;
 import org.bitcoinj.utils.Threading;
-import com.google.common.base.Charsets;
 
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
+import javax.annotation.Nullable;
+import java.io.*;
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.security.DigestOutputStream;
 import java.security.MessageDigest;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.TreeMap;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
 
 /**
@@ -47,34 +45,66 @@ import static com.google.common.base.Preconditions.checkState;
  */
 public class BuildCheckpoints {
 
-    private static final NetworkParameters PARAMS = MainNetParams.get();
-    private static final File PLAIN_CHECKPOINTS_FILE = new File("checkpoints");
-    private static final File TEXTUAL_CHECKPOINTS_FILE = new File("checkpoints.txt");
-
     public static void main(String[] args) throws Exception {
         BriefLogFormatter.init();
 
+
+        final Integer networkIdIndex = findArgsCommand(args, "networkId");
+        final NetworkParameters params;
+        final File plainCheckpointsFile;
+        final File textualCheckpointsFile;
+        if (networkIdIndex != null) {
+            final String networkId = args[networkIdIndex + 1];
+            params = NetworkParameters.fromID(networkId);
+            plainCheckpointsFile = new File("checkpoints_" + networkId);
+            textualCheckpointsFile = new File("checkpoints_" + networkId + ".txt");
+        } else {
+            params = MainNetParams.get();
+            plainCheckpointsFile = new File("checkpoints");
+            textualCheckpointsFile = new File("checkpoints.txt");
+        }
+        checkNotNull(params, "params is NULL from args " + Arrays.toString(args));
+
         // Sorted map of block height to StoredBlock object.
-        final TreeMap<Integer, StoredBlock> checkpoints = new TreeMap<Integer, StoredBlock>();
+        final TreeMap<Integer, StoredBlock> checkpoints = new TreeMap<>();
 
         // Configure bitcoinj to fetch only headers, not save them to disk, connect to a local fully synced/validated
         // node and to save block headers that are on interval boundaries, as long as they are <1 month old.
-        final BlockStore store = new MemoryBlockStore(PARAMS);
-        final BlockChain chain = new BlockChain(PARAMS, store);
-        final PeerGroup peerGroup = new PeerGroup(PARAMS, chain);
-        peerGroup.addAddress(InetAddress.getLocalHost());
-        long now = new Date().getTime() / 1000;
-        peerGroup.setFastCatchupTimeSecs(now);
+        final BlockStore store = new MemoryBlockStore(params);
+        final BlockChain chain = new BlockChain(params, store);
 
-        final long oneMonthAgo = now - (86400 * 30);
+        final PeerGroup peerGroup = new PeerGroup(params, chain);
+
+        if (findArgsCommand(args, "useDiscovery") != null) {
+            peerGroup.addPeerDiscovery(new DnsDiscovery(params));
+            peerGroup.setUseLocalhostPeerWhenPossible(false);
+        } else {
+            peerGroup.addAddress(InetAddress.getLocalHost());
+        }
+
+        final long now = new Date().getTime() / 1000;
+
+        final Integer fctIndex = findArgsCommand(args, "fastCatchupTimeSecs");
+        final long fastCatchupTimeSecs = (fctIndex == null) ? now : Long.valueOf(args[fctIndex + 1]);
+
+        peerGroup.setFastCatchupTimeSecs(fastCatchupTimeSecs);
+
+        long al = fastCatchupTimeSecs - (86400 * params.getCoinDefinition().getCheckpointDaysBack());
+        if (al <= params.getGenesisBlock().getTimeSeconds()) {
+            al = now;
+        }
+        final long arbitraryLimit = al;
 
         chain.addListener(new AbstractBlockChainListener() {
             @Override
             public void notifyNewBestBlock(StoredBlock block) throws VerificationException {
                 int height = block.getHeight();
-                if (height % PARAMS.getInterval() == 0 && block.getHeader().getTimeSeconds() <= oneMonthAgo) {
+                final Block header = block.getHeader();
+                if (height % params.getCoinDefinition().getIntervalCheckpoints(header.cloneAsHeader(), height, params.getStandardNetworkId()) == 0
+                        && header.getTimeSeconds() <= arbitraryLimit)
+                {
                     System.out.println(String.format("Checkpointing block %s at height %d",
-                            block.getHeader().getHash(), block.getHeight()));
+                            header.getHash(), block.getHeight()));
                     checkpoints.put(height, block);
                 }
             }
@@ -87,16 +117,27 @@ public class BuildCheckpoints {
         checkState(checkpoints.size() > 0);
 
         // Write checkpoint data out.
-        writeBinaryCheckpoints(checkpoints, PLAIN_CHECKPOINTS_FILE);
-        writeTextualCheckpoints(checkpoints, TEXTUAL_CHECKPOINTS_FILE);
+        writeBinaryCheckpoints(checkpoints, plainCheckpointsFile);
+        writeTextualCheckpoints(checkpoints, textualCheckpointsFile);
 
         peerGroup.stopAsync();
         peerGroup.awaitTerminated();
         store.close();
 
         // Sanity check the created files.
-        sanityCheck(PLAIN_CHECKPOINTS_FILE, checkpoints.size());
-        sanityCheck(TEXTUAL_CHECKPOINTS_FILE, checkpoints.size());
+        CheckCheckpoints.sanityCheck(plainCheckpointsFile, checkpoints, params);
+        CheckCheckpoints.sanityCheck(textualCheckpointsFile, checkpoints, params);
+    }
+
+    @Nullable
+    private static Integer findArgsCommand(String[] args, String command) {
+        for (int i = 0; i < args.length; i++) {
+            final String a = args[i];
+            if (a.equalsIgnoreCase(command)) {
+                return i;
+            }
+        }
+        return null;
     }
 
     private static void writeBinaryCheckpoints(TreeMap<Integer, StoredBlock> checkpoints, File file) throws Exception {
@@ -138,20 +179,4 @@ public class BuildCheckpoints {
         System.out.println("Checkpoints written to '" + file.getCanonicalPath() + "'.");
     }
 
-    private static void sanityCheck(File file, int expectedSize) throws IOException {
-        CheckpointManager manager = new CheckpointManager(PARAMS, new FileInputStream(file));
-        checkState(manager.numCheckpoints() == expectedSize);
-
-        if (PARAMS.getId().equals(NetworkParameters.ID_MAINNET)) {
-            StoredBlock test = manager.getCheckpointBefore(1390500000); // Thu Jan 23 19:00:00 CET 2014
-            checkState(test.getHeight() == 280224);
-            checkState(test.getHeader().getHashAsString()
-                    .equals("00000000000000000b5d59a15f831e1c45cb688a4db6b0a60054d49a9997fa34"));
-        } else if (PARAMS.getId().equals(NetworkParameters.ID_TESTNET)) {
-            StoredBlock test = manager.getCheckpointBefore(1390500000); // Thu Jan 23 19:00:00 CET 2014
-            checkState(test.getHeight() == 167328);
-            checkState(test.getHeader().getHashAsString()
-                    .equals("0000000000035ae7d5025c2538067fe7adb1cf5d5d9c31b024137d9090ed13a9"));
-        }
-    }
 }

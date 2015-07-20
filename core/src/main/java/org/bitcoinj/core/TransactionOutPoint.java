@@ -16,18 +16,23 @@
 
 package org.bitcoinj.core;
 
-import org.bitcoinj.script.*;
-import org.bitcoinj.wallet.*;
+import org.bitcoinj.script.Script;
+import org.bitcoinj.wallet.KeyBag;
+import org.bitcoinj.wallet.RedeemData;
 
-import javax.annotation.*;
-import java.io.*;
+import javax.annotation.Nullable;
+import java.io.IOException;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
+import java.io.Serializable;
 
-import static com.google.common.base.Preconditions.*;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkState;
 
 /**
  * This message is a reference or pointer to an output of a different transaction.
  */
-public class TransactionOutPoint extends ChildMessage implements Serializable {
+public class TransactionOutPoint extends ChildMessage implements Serializable, Hashable {
     private static final long serialVersionUID = -6320880638344662579L;
 
     static final int MESSAGE_LENGTH = 36;
@@ -121,7 +126,7 @@ public class TransactionOutPoint extends ChildMessage implements Serializable {
 
     /**
      * Returns the pubkey script from the connected output.
-     * @throws java.lang.NullPointerException if there is no connected output.
+     * @throws NullPointerException if there is no connected output.
      */
     public byte[] getConnectedPubKeyScript() {
         byte[] result = checkNotNull(getConnectedOutput()).getScriptBytes();
@@ -228,6 +233,6 @@ public class TransactionOutPoint extends ChildMessage implements Serializable {
 
     @Override
     public int hashCode() {
-        return 31 * hash.hashCode() + (int) (index ^ (index >>> 32));
+        return 31 * getHash().hashCode() + (int) (index ^ (index >>> 32));
     }
 }

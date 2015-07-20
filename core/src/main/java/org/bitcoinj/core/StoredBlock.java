@@ -1,5 +1,6 @@
 /**
  * Copyright 2011 Google Inc.
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +20,7 @@ package org.bitcoinj.core;
 import org.bitcoinj.store.BlockStore;
 import org.bitcoinj.store.BlockStoreException;
 
-import java.io.*;
+import java.io.Serializable;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 
@@ -35,7 +36,8 @@ import static com.google.common.base.Preconditions.checkState;
  * StoredBlocks are put inside a {@link BlockStore} which saves them to memory or disk.
  */
 public class StoredBlock implements Serializable {
-    private static final long serialVersionUID = -6097565241243701771L;
+
+    private static final long serialVersionUID = -3873853030087708040L;
 
     // A BigInteger representing the total amount of work done so far on this chain. As of May 2011 it takes 8
     // bytes to represent this field, so 12 bytes should be plenty for now.

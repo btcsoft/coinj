@@ -108,11 +108,11 @@ public class TransactionBroadcastTest extends TestWithPeerGroup {
         Block b1 = FakeTxBuilder.makeSolvedTestBlock(blockStore, address);
         inbound(p1, b1);
         assertNull(outbound(p1));
-        assertEquals(FIFTY_COINS, wallet.getBalance());
+        assertEquals(Coin.fiftyCoins(params.getCoinDefinition()), wallet.getBalance());
 
         // Now create a spend, and expect the announcement on p1.
         Address dest = new ECKey().toAddress(params);
-        Wallet.SendResult sendResult = wallet.sendCoins(peerGroup, dest, COIN);
+        Wallet.SendResult sendResult = wallet.sendCoins(peerGroup, dest, coin(unitTestParams.getCoinDefinition()));
         assertFalse(sendResult.broadcastComplete.isDone());
         Transaction t1;
         {
@@ -139,7 +139,8 @@ public class TransactionBroadcastTest extends TestWithPeerGroup {
 
         // Set up connections and block chain.
         VersionMessage ver = new VersionMessage(params, 2);
-        ver.localServices = VersionMessage.NODE_NETWORK;
+        final Integer nodeNetworkConstant = params.getCoinDefinition().getNodeNetworkConstant();
+        ver.localServices = nodeNetworkConstant != null ? nodeNetworkConstant : 0;
         InboundMessageQueuer p1 = connectPeer(1, ver);
         InboundMessageQueuer p2 = connectPeer(2);
 
@@ -148,7 +149,7 @@ public class TransactionBroadcastTest extends TestWithPeerGroup {
         inbound(p1, b1);
         pingAndWait(p1);
         assertNull(outbound(p1));
-        assertEquals(FIFTY_COINS, wallet.getBalance());
+        assertEquals(Coin.fiftyCoins(params.getCoinDefinition()), wallet.getBalance());
 
         // Check that the wallet informs us of changes in confidence as the transaction ripples across the network.
         final Transaction[] transactions = new Transaction[1];
@@ -161,7 +162,7 @@ public class TransactionBroadcastTest extends TestWithPeerGroup {
 
         // Now create a spend, and expect the announcement on p1.
         Address dest = new ECKey().toAddress(params);
-        Wallet.SendResult sendResult = wallet.sendCoins(peerGroup, dest, COIN);
+        Wallet.SendResult sendResult = wallet.sendCoins(peerGroup, dest, coin(unitTestParams.getCoinDefinition()));
         assertNotNull(sendResult.tx);
         Threading.waitForUserCode();
         assertFalse(sendResult.broadcastComplete.isDone());

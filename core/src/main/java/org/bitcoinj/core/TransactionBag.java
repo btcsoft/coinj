@@ -1,5 +1,6 @@
 /**
  * Copyright 2014 Giannis Dzegoutanis
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +20,14 @@ package org.bitcoinj.core;
 import org.bitcoinj.script.Script;
 import org.bitcoinj.wallet.WalletTransaction;
 
+import javax.annotation.Nonnull;
 import java.util.Map;
 
 /**
  * This interface is used to abstract the {@link org.bitcoinj.core.Wallet} and the {@link org.bitcoinj.core.Transaction}
  */
 public interface TransactionBag {
+
     /** Returns true if this wallet contains a public key which hashes to the given hash. */
     public boolean isPubKeyHashMine(byte[] pubkeyHash);
 
@@ -39,4 +42,9 @@ public interface TransactionBag {
 
     /** Returns transactions from a specific pool. */
     public Map<Sha256Hash, Transaction> getTransactionPool(WalletTransaction.Pool pool);
+
+    /** Returns first non-empty extended pool or empty map. */
+    @Nonnull
+    public Iterable<Map<Sha256Hash, Transaction>> getAllExtendedPools();
+
 }

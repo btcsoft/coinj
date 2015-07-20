@@ -123,7 +123,7 @@ public class ForwardingService {
             Coin value = tx.getValueSentToMe(kit.wallet());
             System.out.println("Forwarding " + value.toFriendlyString());
             // Now send the coins back! Send with a small fee attached to ensure rapid confirmation.
-            final Coin amountToSend = value.subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE);
+            final Coin amountToSend = value.subtract(Coin.valueOf(tx.getDefaultMinFee(), tx.getParams().getCoinDefinition()));
             final Wallet.SendResult sendResult = kit.wallet().sendCoins(kit.peerGroup(), forwardingAddress, amountToSend);
             checkNotNull(sendResult);  // We should never try to send more coins than we have!
             System.out.println("Sending ...");

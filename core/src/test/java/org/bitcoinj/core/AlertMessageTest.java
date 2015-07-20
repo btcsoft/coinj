@@ -18,6 +18,7 @@
 package org.bitcoinj.core;
 
 import org.bitcoinj.params.UnitTestParams;
+import org.coinj.api.CoinLocator;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -32,7 +33,9 @@ public class AlertMessageTest {
     @Before
     public void setUp() throws Exception {
         final ECKey key = ECKey.fromPrivate(TEST_KEY_PRIV);
-        params = new UnitTestParams() {
+        params = new UnitTestParams(CoinLocator.discoverCoinDefinition()) {
+            private static final long serialVersionUID = -5122495780774929564L;
+
             @Override
             public byte[] getAlertSigningKey() {
                 return key.getPubKey();

@@ -1,5 +1,6 @@
 /**
  * Copyright 2012 Google Inc.
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,11 +25,20 @@ import static com.google.common.base.Preconditions.checkNotNull;
  * Stores data about a transaction that is only relevant to the {@link org.bitcoinj.core.Wallet} class.
  */
 public class WalletTransaction {
-    public enum Pool {
-        UNSPENT, // unspent in best chain
-        SPENT, // spent in best chain
-        DEAD, // double-spend in alt chain
-        PENDING, // a pending tx we would like to go into the best chain
+
+    public static final class Pool {
+
+        public static final Pool UNSPENT = new Pool(); // unspent in best chain
+        public static final Pool SPENT = new Pool(); // spent in best chain
+        public static final Pool DEAD = new Pool(); // double-spend in alt chain
+        public static final Pool PENDING = new Pool(); // a pending tx we would like to go into the best chain
+
+        public static Pool createExtension() {
+            return new Pool();
+        }
+
+        private Pool() {}
+
     }
     private final Transaction transaction;
     private final Pool pool;
@@ -45,5 +55,6 @@ public class WalletTransaction {
     public Pool getPool() {
         return pool;
     }
+
 }
 

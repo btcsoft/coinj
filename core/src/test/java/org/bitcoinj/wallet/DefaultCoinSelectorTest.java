@@ -21,8 +21,6 @@ import org.bitcoinj.params.RegTestParams;
 import org.bitcoinj.params.UnitTestParams;
 import org.bitcoinj.testing.FakeTxBuilder;
 import org.bitcoinj.testing.TestWithWallet;
-import org.bitcoinj.wallet.CoinSelection;
-import org.bitcoinj.wallet.DefaultCoinSelector;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -30,7 +28,6 @@ import org.junit.Test;
 import java.net.InetAddress;
 import java.util.ArrayList;
 
-import static org.bitcoinj.core.Coin.*;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.junit.Assert.*;
 
@@ -58,9 +55,9 @@ public class DefaultCoinSelectorTest extends TestWithWallet {
         assertFalse(DefaultCoinSelector.isSelectable(t));
         t.getConfidence().setSource(TransactionConfidence.Source.SELF);
         assertFalse(DefaultCoinSelector.isSelectable(t));
-        t.getConfidence().markBroadcastBy(new PeerAddress(InetAddress.getByName("1.2.3.4")));
+        t.getConfidence().markBroadcastBy(new PeerAddress(InetAddress.getByName("1.2.3.4"), params.getPort(), params.protocolVersion));
         assertFalse(DefaultCoinSelector.isSelectable(t));
-        t.getConfidence().markBroadcastBy(new PeerAddress(InetAddress.getByName("5.6.7.8")));
+        t.getConfidence().markBroadcastBy(new PeerAddress(InetAddress.getByName("5.6.7.8"), params.getPort(), params.protocolVersion));
         assertTrue(DefaultCoinSelector.isSelectable(t));
         t = new Transaction(params);
         t.getConfidence().setConfidenceType(TransactionConfidence.ConfidenceType.BUILDING);
@@ -74,14 +71,14 @@ public class DefaultCoinSelectorTest extends TestWithWallet {
     @Test
     public void depthOrdering() throws Exception {
         // Send two transactions in two blocks on top of each other.
-        Transaction t1 = checkNotNull(sendMoneyToWallet(COIN, AbstractBlockChain.NewBlockType.BEST_CHAIN));
-        Transaction t2 = checkNotNull(sendMoneyToWallet(COIN, AbstractBlockChain.NewBlockType.BEST_CHAIN));
+        Transaction t1 = checkNotNull(sendMoneyToWallet(coin, AbstractBlockChain.NewBlockType.BEST_CHAIN));
+        Transaction t2 = checkNotNull(sendMoneyToWallet(coin, AbstractBlockChain.NewBlockType.BEST_CHAIN));
 
         // Check we selected just the oldest one.
         DefaultCoinSelector selector = new DefaultCoinSelector();
-        CoinSelection selection = selector.select(COIN, wallet.calculateAllSpendCandidates(true));
+        CoinSelection selection = selector.select(coin, wallet.calculateAllSpendCandidates(true));
         assertTrue(selection.gathered.contains(t1.getOutputs().get(0)));
-        assertEquals(COIN, selection.valueGathered);
+        assertEquals(coin, selection.valueGathered);
 
         // Check we ordered them correctly (by depth).
         ArrayList<TransactionOutput> candidates = new ArrayList<TransactionOutput>();
@@ -96,12 +93,12 @@ public class DefaultCoinSelectorTest extends TestWithWallet {
     public void coinAgeOrdering() throws Exception {
         // Send three transactions in four blocks on top of each other. Coin age of t1 is 1*4=4, coin age of t2 = 2*2=4
         // and t3=0.01.
-        Transaction t1 = checkNotNull(sendMoneyToWallet(COIN, AbstractBlockChain.NewBlockType.BEST_CHAIN));
+        Transaction t1 = checkNotNull(sendMoneyToWallet(coin, AbstractBlockChain.NewBlockType.BEST_CHAIN));
         // Padding block.
         wallet.notifyNewBestBlock(FakeTxBuilder.createFakeBlock(blockStore).storedBlock);
-        final Coin TWO_COINS = COIN.multiply(2);
-        Transaction t2 = checkNotNull(sendMoneyToWallet(TWO_COINS, AbstractBlockChain.NewBlockType.BEST_CHAIN));
-        Transaction t3 = checkNotNull(sendMoneyToWallet(CENT, AbstractBlockChain.NewBlockType.BEST_CHAIN));
+        final Coin TWO_coinS = coin.multiply(2);
+        Transaction t2 = checkNotNull(sendMoneyToWallet(TWO_coinS, AbstractBlockChain.NewBlockType.BEST_CHAIN));
+        Transaction t3 = checkNotNull(sendMoneyToWallet(cent, AbstractBlockChain.NewBlockType.BEST_CHAIN));
 
         // Should be ordered t2, t1, t3.
         ArrayList<TransactionOutput> candidates = new ArrayList<TransactionOutput>();

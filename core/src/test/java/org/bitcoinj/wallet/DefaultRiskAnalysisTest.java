@@ -17,26 +17,24 @@
 
 package org.bitcoinj.wallet;
 
-import com.google.common.collect.Lists;
+import com.google.common.collect.ImmutableList;
 import org.bitcoinj.core.*;
 import org.bitcoinj.params.MainNetParams;
 import org.bitcoinj.script.ScriptBuilder;
 import org.bitcoinj.script.ScriptChunk;
-import com.google.common.collect.ImmutableList;
-import org.bitcoinj.wallet.DefaultRiskAnalysis;
-import org.bitcoinj.wallet.RiskAnalysis;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.bitcoinj.core.Coin.COIN;
 import static org.bitcoinj.script.ScriptOpCodes.OP_PUSHDATA1;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 public class DefaultRiskAnalysisTest {
     // Uses mainnet because isStandard checks are disabled on testnet.
     private static final NetworkParameters params = MainNetParams.get();
+    private static final Coin coin = Coin.coin(params.getCoinDefinition());
+    private static final Coin zero = Coin.zero(params.getCoinDefinition());
+    private static final Coin cent = Coin.cent(params.getCoinDefinition());
+    private static final Coin satoshi = Coin.satoshi(params.getCoinDefinition());
     private Wallet wallet;
     private final int TIMESTAMP = 1384190189;
     private static final ECKey key1 = new ECKey();
@@ -62,7 +60,7 @@ public class DefaultRiskAnalysisTest {
         // Verify that just having a lock time in the future is not enough to be considered risky (it's still final).
         Transaction tx = new Transaction(params);
         TransactionInput input = tx.addInput(params.getGenesisBlock().getTransactions().get(0).getOutput(0));
-        tx.addOutput(COIN, key1);
+        tx.addOutput(coin, key1);
         tx.setLockTime(TIMESTAMP + 86400);
 
         {
@@ -96,7 +94,7 @@ public class DefaultRiskAnalysisTest {
     public void selfCreatedAreNotRisky() {
         Transaction tx = new Transaction(params);
         tx.addInput(params.getGenesisBlock().getTransactions().get(0).getOutput(0)).setSequenceNumber(1);
-        tx.addOutput(COIN, key1);
+        tx.addOutput(coin, key1);
         tx.setLockTime(TIMESTAMP + 86400);
 
         {
@@ -117,11 +115,11 @@ public class DefaultRiskAnalysisTest {
         // Final tx has a dependency that is non-final.
         Transaction tx1 = new Transaction(params);
         tx1.addInput(params.getGenesisBlock().getTransactions().get(0).getOutput(0)).setSequenceNumber(1);
-        TransactionOutput output = tx1.addOutput(COIN, key1);
+        TransactionOutput output = tx1.addOutput(coin, key1);
         tx1.setLockTime(TIMESTAMP + 86400);
         Transaction tx2 = new Transaction(params);
         tx2.addInput(output);
-        tx2.addOutput(COIN, new ECKey());
+        tx2.addOutput(coin, new ECKey());
 
         DefaultRiskAnalysis analysis = DefaultRiskAnalysis.FACTORY.create(wallet, tx2, ImmutableList.of(tx1));
         assertEquals(RiskAnalysis.Result.NON_FINAL, analysis.analyze());
@@ -132,12 +130,12 @@ public class DefaultRiskAnalysisTest {
     public void nonStandardDust() {
         Transaction standardTx = new Transaction(params);
         standardTx.addInput(params.getGenesisBlock().getTransactions().get(0).getOutput(0));
-        standardTx.addOutput(COIN, key1);
+        standardTx.addOutput(coin, key1);
         assertEquals(RiskAnalysis.Result.OK, DefaultRiskAnalysis.FACTORY.create(wallet, standardTx, NO_DEPS).analyze());
 
         Transaction dustTx = new Transaction(params);
         dustTx.addInput(params.getGenesisBlock().getTransactions().get(0).getOutput(0));
-        dustTx.addOutput(Coin.SATOSHI, key1); // 1 Satoshi
+        dustTx.addOutput(satoshi, key1); // 1 Satoshi
         assertEquals(RiskAnalysis.Result.NON_STANDARD, DefaultRiskAnalysis.FACTORY.create(wallet, dustTx, NO_DEPS).analyze());
 
         Transaction edgeCaseTx = new Transaction(params);
@@ -158,7 +156,7 @@ public class DefaultRiskAnalysisTest {
         // Test non-standard script as an output.
         tx.clearInputs();
         assertEquals(DefaultRiskAnalysis.RuleViolation.NONE, DefaultRiskAnalysis.isStandard(tx));
-        tx.addOutput(new TransactionOutput(params, null, COIN, nonStandardScript));
+        tx.addOutput(new TransactionOutput(params, null, coin, nonStandardScript));
         assertEquals(DefaultRiskAnalysis.RuleViolation.SHORTEST_POSSIBLE_PUSHDATA, DefaultRiskAnalysis.isStandard(tx));
     }
 
@@ -167,19 +165,19 @@ public class DefaultRiskAnalysisTest {
         Transaction tx = new Transaction(params);
         tx.addInput(params.getGenesisBlock().getTransactions().get(0).getOutput(0));
         // A pay to address output
-        tx.addOutput(Coin.CENT, ScriptBuilder.createOutputScript(key1.toAddress(params)));
+        tx.addOutput(cent, ScriptBuilder.createOutputScript(key1.toAddress(params)));
         // A pay to pubkey output
-        tx.addOutput(Coin.CENT, ScriptBuilder.createOutputScript(key1));
-        tx.addOutput(Coin.CENT, ScriptBuilder.createOutputScript(key1));
+        tx.addOutput(cent, ScriptBuilder.createOutputScript(key1));
+        tx.addOutput(cent, ScriptBuilder.createOutputScript(key1));
         // 1-of-2 multisig output.
         ImmutableList<ECKey> keys = ImmutableList.of(key1, new ECKey());
-        tx.addOutput(Coin.CENT, ScriptBuilder.createMultiSigOutputScript(1, keys));
+        tx.addOutput(cent, ScriptBuilder.createMultiSigOutputScript(1, keys));
         // 2-of-2 multisig output.
-        tx.addOutput(Coin.CENT, ScriptBuilder.createMultiSigOutputScript(2, keys));
+        tx.addOutput(cent, ScriptBuilder.createMultiSigOutputScript(2, keys));
         // P2SH
-        tx.addOutput(Coin.CENT, ScriptBuilder.createP2SHOutputScript(1, keys));
+        tx.addOutput(cent, ScriptBuilder.createP2SHOutputScript(1, keys));
         // OP_RETURN
-        tx.addOutput(Coin.CENT, ScriptBuilder.createOpReturnScript("hi there".getBytes()));
+        tx.addOutput(cent, ScriptBuilder.createOpReturnScript("hi there".getBytes()));
         assertEquals(RiskAnalysis.Result.OK, DefaultRiskAnalysis.FACTORY.create(wallet, tx, NO_DEPS).analyze());
     }
 }

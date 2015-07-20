@@ -1,12 +1,11 @@
 package org.bitcoinj.wallet;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.bitcoinj.core.Coin;
-import org.bitcoinj.core.NetworkParameters;
 import org.bitcoinj.core.Transaction;
 import org.bitcoinj.core.TransactionConfidence;
 import org.bitcoinj.core.TransactionOutput;
-import org.bitcoinj.params.RegTestParams;
-import com.google.common.annotations.VisibleForTesting;
+import org.coinj.api.CoinDefinition;
 
 import java.math.BigInteger;
 import java.util.*;
@@ -26,7 +25,7 @@ public class DefaultCoinSelector implements CoinSelector {
         ArrayList<TransactionOutput> sortedOutputs = new ArrayList<TransactionOutput>(candidates);
         // When calculating the wallet balance, we may be asked to select all possible coins, if so, avoid sorting
         // them in order to improve performance.
-        if (!biTarget.equals(NetworkParameters.MAX_MONEY)) {
+        if (!biTarget.equals(Coin.maxMoney())) {
             sortOutputs(sortedOutputs);
         }
         // Now iterate over the sorted outputs until we have got as close to the target as possible or a little
@@ -52,9 +51,9 @@ public class DefaultCoinSelector implements CoinSelector {
                 int depth2 = 0;
                 TransactionConfidence conf1 = a.getParentTransaction().getConfidence();
                 TransactionConfidence conf2 = b.getParentTransaction().getConfidence();
-                if (conf1.getConfidenceType() == TransactionConfidence.ConfidenceType.BUILDING)
+                if (conf1.getConfidenceType().equals(TransactionConfidence.ConfidenceType.BUILDING))
                     depth1 = conf1.getDepthInBlocks();
-                if (conf2.getConfidenceType() == TransactionConfidence.ConfidenceType.BUILDING)
+                if (conf2.getConfidenceType().equals(TransactionConfidence.ConfidenceType.BUILDING))
                     depth2 = conf2.getDepthInBlocks();
                 Coin aValue = a.getValue();
                 Coin bValue = b.getValue();
@@ -82,12 +81,11 @@ public class DefaultCoinSelector implements CoinSelector {
         // Only pick chain-included transactions, or transactions that are ours and pending.
         TransactionConfidence confidence = tx.getConfidence();
         TransactionConfidence.ConfidenceType type = confidence.getConfidenceType();
-        return type.equals(TransactionConfidence.ConfidenceType.BUILDING) ||
-
+        return (type.equals(TransactionConfidence.ConfidenceType.BUILDING) || confidence.getConfidenceExtension().isCoinsSelectableByDefault(tx)) ||
                type.equals(TransactionConfidence.ConfidenceType.PENDING) &&
                confidence.getSource().equals(TransactionConfidence.Source.SELF) &&
                // In regtest mode we expect to have only one peer, so we won't see transactions propagate.
                // TODO: The value 1 below dates from a time when transactions we broadcast *to* were counted, set to 0
-               (confidence.numBroadcastPeers() > 1 || tx.getParams() == RegTestParams.get());
+               (confidence.numBroadcastPeers() > 1 || CoinDefinition.REG_TEST_STANDARD.equals(tx.getParams().getStandardNetworkId()));
     }
 }

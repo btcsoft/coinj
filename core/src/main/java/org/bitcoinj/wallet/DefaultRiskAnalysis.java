@@ -17,19 +17,13 @@
 
 package org.bitcoinj.wallet;
 
-import org.bitcoinj.core.Coin;
-import org.bitcoinj.core.NetworkParameters;
-import org.bitcoinj.core.Transaction;
-import org.bitcoinj.core.TransactionConfidence;
-import org.bitcoinj.core.TransactionInput;
-import org.bitcoinj.core.TransactionOutput;
-import org.bitcoinj.core.Wallet;
+import org.bitcoinj.core.*;
 import org.bitcoinj.script.ScriptChunk;
+import org.coinj.api.CoinDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
-
 import java.util.List;
 
 import static com.google.common.base.Preconditions.checkState;
@@ -44,7 +38,7 @@ public class DefaultRiskAnalysis implements RiskAnalysis {
 
     /**
      * Any standard output smaller than this value (in satoshis) will be considered risky, as it's most likely be
-     * rejected by the network. Currently it's 546 satoshis. This is different from {@link Transaction#MIN_NONDUST_OUTPUT}
+     * rejected by the network. Currently it's 546 satoshis. This is different from {@link CoinDefinition#getDustLimit()}
      * because of an upcoming fee change in Bitcoin Core 0.9.
      */
     public static final Coin MIN_ANALYSIS_NONDUST_OUTPUT = Coin.valueOf(546);
@@ -172,7 +166,7 @@ public class DefaultRiskAnalysis implements RiskAnalysis {
     private Result analyzeIsStandard() {
         // The IsStandard rules don't apply on testnet, because they're just a safety mechanism and we don't want to
         // crush innovation with valueless test coins.
-        if (!wallet.getNetworkParameters().getId().equals(NetworkParameters.ID_MAINNET))
+        if (!wallet.getNetworkParameters().isMainNet())
             return Result.OK;
 
         RuleViolation ruleViolation = isStandard(tx);

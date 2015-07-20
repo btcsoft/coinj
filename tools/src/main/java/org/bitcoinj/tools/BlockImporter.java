@@ -48,7 +48,7 @@ public class BlockImporter {
         else
             chain = new BlockChain(params, store);
         
-        BlockFileLoader loader = new BlockFileLoader(params, BlockFileLoader.getReferenceClientBlockFileList());
+        BlockFileLoader loader = new BlockFileLoader(params, BlockFileLoader.getReferenceClientBlockFileList(params));
         
         for (Block block : loader)
             chain.add(block);

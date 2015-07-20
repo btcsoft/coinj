@@ -19,6 +19,7 @@ package org.bitcoinj.core;
 
 import com.google.common.io.ByteStreams;
 
+import javax.annotation.Nonnull;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -35,6 +36,9 @@ import static com.google.common.base.Preconditions.checkArgument;
  * map. It also checks that the length is correct and provides a bit more type safety.
  */
 public class Sha256Hash implements Serializable, Comparable<Sha256Hash> {
+
+    private static final long serialVersionUID = 3225538510597489133L;
+
     private final byte[] bytes;
     public static final Sha256Hash ZERO_HASH = new Sha256Hash(new byte[32]);
 
@@ -53,6 +57,23 @@ public class Sha256Hash implements Serializable, Comparable<Sha256Hash> {
     public Sha256Hash(String hexString) {
         checkArgument(hexString.length() == 64);
         this.bytes = Utils.HEX.decode(hexString);
+    }
+
+    public Sha256Hash(BigInteger i) {
+        checkArgument(i.signum() >= 0, "BigInteger mustn't be negative");
+        final byte[] iBytes = i.toByteArray();
+        final int actualLength, start;
+        if (iBytes[0] == 0) {
+            actualLength = iBytes.length - 1;
+            start = 1;
+        } else {
+            actualLength = iBytes.length;
+            start = 0;
+        }
+        checkArgument(actualLength <= 32, "BigInteger too large: %s", i);
+        final byte[] outBytes = new byte[32];
+        System.arraycopy(iBytes, start, outBytes, 32 - actualLength, actualLength);
+        bytes = outBytes;
     }
 
     /**
@@ -104,6 +125,10 @@ public class Sha256Hash implements Serializable, Comparable<Sha256Hash> {
     @Override
     public int hashCode() {
         // Use the last 4 bytes, not the first 4 which are often zeros in Bitcoin.
+        return coinHashCode(bytes);
+    }
+
+    public static int coinHashCode(byte[] bytes) {
         return (bytes[31] & 0xFF) | ((bytes[30] & 0xFF) << 8) | ((bytes[29] & 0xFF) << 16) | ((bytes[28] & 0xFF) << 24);
     }
 
@@ -128,9 +153,10 @@ public class Sha256Hash implements Serializable, Comparable<Sha256Hash> {
     }
 
     @Override
-    public int compareTo(Sha256Hash o) {
+    public int compareTo(@Nonnull Sha256Hash o) {
         int thisCode = this.hashCode();
-        int oCode = ((Sha256Hash)o).hashCode();
+        int oCode = o.hashCode();
         return thisCode > oCode ? 1 : (thisCode == oCode ? 0 : -1);
     }
+
 }

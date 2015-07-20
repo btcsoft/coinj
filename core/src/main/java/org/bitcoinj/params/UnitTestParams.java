@@ -1,5 +1,6 @@
 /*
  * Copyright 2013 Google Inc.
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +19,8 @@ package org.bitcoinj.params;
 
 import org.bitcoinj.core.Block;
 import org.bitcoinj.core.NetworkParameters;
+import org.coinj.api.CoinDefinition;
+import org.coinj.api.NetworkMode;
 
 import java.math.BigInteger;
 
@@ -26,36 +29,86 @@ import java.math.BigInteger;
  * {@link org.bitcoinj.core.Block#solve()} by setting difficulty to the easiest possible.
  */
 public class UnitTestParams extends NetworkParameters {
-    public UnitTestParams() {
-        super();
-        id = ID_UNITTESTNET;
+
+    private static final int UNIT_TEST_INTERVAL = 10;
+    private static final int UNIT_TEST_TARGET_TIMESPAN = 200000000;
+
+    private static final long serialVersionUID = -1429026463997986865L;
+
+    public UnitTestParams(CoinDefinition coinDefinition) {
+        super(coinDefinition);
+        sharedConstruction(coinDefinition);
+    }
+    public UnitTestParams(CoinDefinition coinDefinition, NetworkMode mode) {
+        super(coinDefinition, mode);
+        sharedConstruction(coinDefinition);
+    }
+
+    private void sharedConstruction(CoinDefinition coinDefinition) {
+        id = coinDefinition.getIdUnitTestNet();
         packetMagic = 0x0b110907;
-        addressHeader = 111;
-        p2shHeader = 196;
+        addressHeader = coinDefinition.getPubkeyAddressHeader(CoinDefinition.TEST_NETWORK_STANDARD);
+        p2shHeader = coinDefinition.getP2shAddressHeader(CoinDefinition.TEST_NETWORK_STANDARD);
         acceptableAddressCodes = new int[] { addressHeader, p2shHeader };
-        maxTarget = new BigInteger("00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", 16);
+        standardNetworkId = new CoinDefinition.StandardNetworkIdImpl("unitTest");
+        maxTarget = coinDefinition.getProofOfWorkLimit(standardNetworkId);
+        genesisBlock = createGenesis(this, coinDefinition.getGenesisBlockInfo(CoinDefinition.MAIN_NETWORK_STANDARD));
         genesisBlock.setTime(System.currentTimeMillis() / 1000);
-        genesisBlock.setDifficultyTarget(Block.EASIEST_DIFFICULTY_TARGET);
+        genesisBlock.setDifficultyTarget(coinDefinition.getEasiestDifficultyTarget());
+        genesisBlock.setNonce(1L);
         genesisBlock.solve();
-        port = 18333;
-        interval = 10;
-        dumpedPrivateKeyHeader = 239;
-        targetTimespan = 200000000;  // 6 years. Just a very big number.
+        port = coinDefinition.getPort(CoinDefinition.TEST_NETWORK_STANDARD);
+        dumpedPrivateKeyHeader = 128 + addressHeader;
         spendableCoinbaseDepth = 5;
         subsidyDecreaseBlockCount = 100;
         dnsSeeds = null;
     }
 
-    private static UnitTestParams instance;
-    public static synchronized UnitTestParams get() {
-        if (instance == null) {
-            instance = new UnitTestParams();
+    static final class UnitTestParamsFactory extends ParamsFactory<UnitTestParams> {
+
+        @Override
+        public UnitTestParams createParams(CoinDefinition coinDefinition) {
+            return new UnitTestParams(coinDefinition);
         }
-        return instance;
+
+        @Override
+        public UnitTestParams createParams(CoinDefinition coinDefinition, NetworkMode mode) {
+            return new UnitTestParams(coinDefinition, mode);
+        }
+
+    }
+
+    private static final ParamsRegistry<UnitTestParams> paramsRegistry = new ParamsRegistry<UnitTestParams>(new UnitTestParamsFactory());
+
+    public static UnitTestParams get(CoinDefinition def) {
+        return paramsRegistry.get(def);
+    }
+
+    public static UnitTestParams get() {
+        return paramsRegistry.get();
+    }
+
+    public static UnitTestParams get(CoinDefinition def, NetworkMode mode) {
+        return paramsRegistry.get(def, mode);
+    }
+
+    public static UnitTestParams get(NetworkMode mode) {
+        return paramsRegistry.get(mode);
+    }
+
+    @Override
+    public int getInterval(Block block, int height) {
+        return UNIT_TEST_INTERVAL;
+    }
+
+    @Override
+    public int getTargetTimespan(Block block, int height) {
+        return UNIT_TEST_TARGET_TIMESPAN;
     }
 
     @Override
     public String getPaymentProtocolId() {
         return null;
     }
+
 }

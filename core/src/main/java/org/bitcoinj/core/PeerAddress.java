@@ -1,5 +1,6 @@
 /**
  * Copyright 2011 Google Inc.
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,12 +17,12 @@
 
 package org.bitcoinj.core;
 
-import org.bitcoinj.params.MainNetParams;
 import com.google.common.net.InetAddresses;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.math.BigInteger;
+import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
@@ -82,26 +83,8 @@ public class PeerAddress extends ChildMessage {
         length = protocolVersion > 31402 ? MESSAGE_SIZE : MESSAGE_SIZE - 4;
     }
 
-    /**
-     * Constructs a peer address from the given IP address and port. Protocol version is the default.
-     */
-    public PeerAddress(InetAddress addr, int port) {
-        this(addr, port, NetworkParameters.PROTOCOL_VERSION);
-    }
-
-    /**
-     * Constructs a peer address from the given IP address. Port and protocol version are default for the prodnet.
-     */
-    public PeerAddress(InetAddress addr) {
-        this(addr, MainNetParams.get().getPort());
-    }
-
-    public PeerAddress(InetSocketAddress addr) {
-        this(addr.getAddress(), addr.getPort());
-    }
-
     public static PeerAddress localhost(NetworkParameters params) {
-        return new PeerAddress(InetAddresses.forString("127.0.0.1"), params.getPort());
+        return new PeerAddress(InetAddresses.forString("127.0.0.1"), params.getPort(), params.protocolVersion);
     }
 
     @Override
@@ -240,6 +223,14 @@ public class PeerAddress extends ChildMessage {
     @Override
     public String toString() {
         return "[" + addr.getHostAddress() + "]:" + port;
+    }
+
+    public String satoshiStyleToString() {
+        if (addr instanceof Inet4Address) {
+            return addr.getHostAddress() + ":" + port;
+        } else {
+            return toString();
+        }
     }
 
     @Override

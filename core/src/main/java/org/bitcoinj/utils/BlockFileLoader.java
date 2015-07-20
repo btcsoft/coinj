@@ -20,15 +20,14 @@ import org.bitcoinj.core.Block;
 import org.bitcoinj.core.NetworkParameters;
 import org.bitcoinj.core.ProtocolException;
 import org.bitcoinj.core.Utils;
+import org.bitcoinj.params.TestNet3Params;
+import org.coinj.api.CoinDefinition;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.*;
 
 /**
  * <p>This class reads block files stored in the reference/Satoshi client format. This is simply a way to concatenate
@@ -49,15 +48,16 @@ public class BlockFileLoader implements Iterable<Block>, Iterator<Block> {
     /**
      * Gets the list of files which contain blocks from the Satoshi client.
      */
-    public static List<File> getReferenceClientBlockFileList() {
+    public static List<File> getReferenceClientBlockFileList(NetworkParameters params) {
+        final CoinDefinition def = params.getCoinDefinition();
         String defaultDataDir;
         String OS = System.getProperty("os.name").toLowerCase();
-        if (OS.indexOf("win") >= 0) {
-            defaultDataDir = System.getenv("APPDATA") + "\\.bitcoin\\blocks\\";
-        } else if (OS.indexOf("mac") >= 0 || (OS.indexOf("darwin") >= 0)) {
-            defaultDataDir = System.getProperty("user.home") + "/Library/Application Support/Bitcoin/blocks/";
+        if (OS.contains("win")) {
+            defaultDataDir = System.getenv("APPDATA") + "\\." + def.getUriScheme() + "\\blocks\\";
+        } else if (OS.contains("mac") || (OS.contains("darwin"))) {
+            defaultDataDir = System.getProperty("user.home") + "/Library/Application Support/" + def.getName() + "/blocks/";
         } else {
-            defaultDataDir = System.getProperty("user.home") + "/.bitcoin/blocks/";
+            defaultDataDir = System.getProperty("user.home") + "/." + def.getUriScheme() + "/blocks/";
         }
         
         List<File> list = new LinkedList<File>();
@@ -145,7 +145,7 @@ public class BlockFileLoader implements Iterable<Block>, Iterator<Block> {
                 currentFileStream.read(bytes, 0, 4);
                 long size = Utils.readUint32BE(Utils.reverseBytes(bytes), 0);
                 // We allow larger than MAX_BLOCK_SIZE because test code uses this as well.
-                if (size > Block.MAX_BLOCK_SIZE*2 || size <= 0)
+                if (size > params.maxBlockSize * 2 || size <= 0)
                     continue;
                 bytes = new byte[(int) size];
                 currentFileStream.read(bytes, 0, (int) size);

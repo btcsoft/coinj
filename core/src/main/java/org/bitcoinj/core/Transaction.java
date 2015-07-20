@@ -1,6 +1,7 @@
 /**
  * Copyright 2011 Google Inc.
  * Copyright 2014 Andreas Schildbach
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,25 +18,29 @@
 
 package org.bitcoinj.core;
 
-import org.bitcoinj.core.TransactionConfidence.ConfidenceType;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
 import org.bitcoinj.crypto.TransactionSignature;
 import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptBuilder;
 import org.bitcoinj.script.ScriptOpCodes;
 import org.bitcoinj.utils.ExchangeRate;
 import org.bitcoinj.wallet.WalletTransaction.Pool;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.primitives.Ints;
-import com.google.common.primitives.Longs;
+import org.coinj.api.TransactionExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.*;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
-import static org.bitcoinj.core.Utils.*;
+import static com.google.common.base.Preconditions.checkNotNull;
 import static com.google.common.base.Preconditions.checkState;
+import static org.bitcoinj.core.Utils.*;
 
 /**
  * <p>A transaction represents the movement of coins from some addresses to some other addresses. It can also represent
@@ -51,7 +56,7 @@ import static com.google.common.base.Preconditions.checkState;
  * sense for selling MP3s might not make sense for selling cars, or accepting payments from a family member. If you
  * are building a wallet, how to present confidence to your users is something to consider carefully.</p>
  */
-public class Transaction extends ChildMessage implements Serializable {
+public class Transaction extends ChildMessage implements Serializable, Hashable {
     /**
      * A comparator that can be used to sort transactions by their updateTime field. The ordering goes from most recent
      * into the past.
@@ -85,19 +90,6 @@ public class Transaction extends ChildMessage implements Serializable {
 
     /** How many bytes a transaction can be before it won't be relayed anymore. Currently 100kb. */
     public static final int MAX_STANDARD_TX_SIZE = 100000;
-
-    /**
-     * If fee is lower than this value (in satoshis), a default reference client will treat it as if there were no fee.
-     * Currently this is 1000 satoshis.
-     */
-    public static final Coin REFERENCE_DEFAULT_MIN_TX_FEE = Coin.valueOf(1000);
-
-    /**
-     * Any standard (ie pay-to-address) output smaller than this value (in satoshis) will most likely be rejected by the network.
-     * This is calculated by assuming a standard output will be 34 bytes, and then using the formula used in
-     * {@link TransactionOutput#getMinNonDustValue(Coin)}. Currently it's 546 satoshis.
-     */
-    public static final Coin MIN_NONDUST_OUTPUT = Coin.valueOf(546);
 
     // These are serialized in both bitcoin and java serialization.
     private long version;
@@ -169,6 +161,8 @@ public class Transaction extends ChildMessage implements Serializable {
     @Nullable
     private String memo;
 
+    private TransactionExtension transactionExtension;
+
     public Transaction(NetworkParameters params) {
         super(params);
         version = 1;
@@ -176,6 +170,7 @@ public class Transaction extends ChildMessage implements Serializable {
         outputs = new ArrayList<TransactionOutput>();
         // We don't initialize appearsIn deliberately as it's only useful for transactions stored in the wallet.
         length = 8; // 8 for std fields
+        transactionExtension = params.getCoinDefinition().createTransactionExtension(this);
     }
 
     /**
@@ -183,6 +178,7 @@ public class Transaction extends ChildMessage implements Serializable {
      */
     public Transaction(NetworkParameters params, byte[] payloadBytes) throws ProtocolException {
         super(params, payloadBytes, 0);
+        transactionExtension = params.getCoinDefinition().createTransactionExtension(this);
     }
 
     /**
@@ -191,6 +187,7 @@ public class Transaction extends ChildMessage implements Serializable {
     public Transaction(NetworkParameters params, byte[] payload, int offset) throws ProtocolException {
         super(params, payload, offset);
         // inputs/outputs will be created in parse()
+        transactionExtension = params.getCoinDefinition().createTransactionExtension(this);
     }
 
     /**
@@ -209,6 +206,7 @@ public class Transaction extends ChildMessage implements Serializable {
     public Transaction(NetworkParameters params, byte[] payload, int offset, @Nullable Message parent, boolean parseLazy, boolean parseRetain, int length)
             throws ProtocolException {
         super(params, payload, offset, parent, parseLazy, parseRetain, length);
+        transactionExtension = params.getCoinDefinition().createTransactionExtension(this);
     }
 
     /**
@@ -217,6 +215,7 @@ public class Transaction extends ChildMessage implements Serializable {
     public Transaction(NetworkParameters params, byte[] payload, @Nullable Message parent, boolean parseLazy, boolean parseRetain, int length)
             throws ProtocolException {
         super(params, payload, 0, parent, parseLazy, parseRetain, length);
+        transactionExtension = params.getCoinDefinition().createTransactionExtension(this);
     }
 
     /**
@@ -252,7 +251,7 @@ public class Transaction extends ChildMessage implements Serializable {
     Coin getValueSentToMe(TransactionBag transactionBag, boolean includeSpent) {
         maybeParse();
         // This is tested in WalletTest.
-        Coin v = Coin.ZERO;
+        Coin v = Coin.zero(params);
         for (TransactionOutput o : outputs) {
             if (!o.isMineOrWatched(transactionBag)) continue;
             if (!includeSpent && !o.isAvailableForSpending()) continue;
@@ -306,7 +305,7 @@ public class Transaction extends ChildMessage implements Serializable {
      * @return true if this transaction hasn't been seen in any block yet.
      */
     public boolean isPending() {
-        return getConfidence().getConfidenceType() == TransactionConfidence.ConfidenceType.PENDING;
+        return getConfidence().getConfidenceType().equals(TransactionConfidence.ConfidenceType.PENDING);
     }
 
     /**
@@ -318,7 +317,7 @@ public class Transaction extends ChildMessage implements Serializable {
      * is the best chain. The best chain block is guaranteed to be called last. So this must be idempotent.</p>
      *
      * <p>Sets updatedAt to be the earliest valid block time where this tx was seen.</p>
-     * 
+     *
      * @param block     The {@link StoredBlock} in which the transaction has appeared.
      * @param bestChain whether to set the updatedAt timestamp from the block header (only if not already set)
      * @param relativityOffset A number that disambiguates the order of transactions within a block.
@@ -356,7 +355,7 @@ public class Transaction extends ChildMessage implements Serializable {
     public Coin getValueSentFromMe(TransactionBag wallet) throws ScriptException {
         maybeParse();
         // This is tested in WalletTest.
-        Coin v = Coin.ZERO;
+        Coin v = Coin.zero(params);
         for (TransactionInput input : inputs) {
             // This input is taking value from a transaction in our wallet. To discover the value,
             // we must find the connected transaction.
@@ -365,6 +364,13 @@ public class Transaction extends ChildMessage implements Serializable {
                 connected = input.getConnectedOutput(wallet.getTransactionPool(Pool.SPENT));
             if (connected == null)
                 connected = input.getConnectedOutput(wallet.getTransactionPool(Pool.PENDING));
+            if (connected == null) {
+                for (final Map<Sha256Hash, Transaction> pool : wallet.getAllExtendedPools()) {
+                    connected = input.getConnectedOutput(pool);
+                    if (connected != null)
+                        break;
+                }
+            }
             if (connected == null)
                 continue;
             // The connected output may be the change to the sender of a previous input sent to this wallet. In this
@@ -386,20 +392,49 @@ public class Transaction extends ChildMessage implements Serializable {
     /**
      * The transaction fee is the difference of the value of all inputs and the value of all outputs. Currently, the fee
      * can only be determined for transactions created by us.
-     * 
+     *
      * @return fee, or null if it cannot be determined
      */
+    @Nullable
     public Coin getFee() {
-        Coin fee = Coin.ZERO;
+        Coin totalInputs = getTotalInputs();
+        if (totalInputs == null) return null;
+        return getFeeFromInputs(totalInputs);
+    }
+
+    public Coin getFeeFromInputs(@Nonnull Coin totalInputs) {
+        checkNotNull(totalInputs);
+        for (TransactionOutput output : outputs) {
+            totalInputs = totalInputs.subtract(output.getValue());
+        }
+        return totalInputs;
+    }
+
+    @Nullable
+    public Coin getFeeFromOutputs(@Nonnull Coin totalOutputs) {
+        checkNotNull(totalOutputs);
+        final Coin totalInputs = getTotalInputs();
+        if (totalInputs == null) return null;
+        return totalInputs.subtract(totalOutputs);
+    }
+
+    @Nullable
+    public Coin getTotalInputs() {
+        Coin total = Coin.zero(params.getCoinDefinition());
         for (TransactionInput input : inputs) {
             if (input.getValue() == null)
                 return null;
-            fee = fee.add(input.getValue());
+            total = total.add(input.getValue());
         }
+        return total;
+    }
+
+    public Coin getTotalOutputs() {
+        Coin total = Coin.zero(params.getCoinDefinition());
         for (TransactionOutput output : outputs) {
-            fee = fee.subtract(output.getValue());
+            total = total.add(output.getValue());
         }
-        return fee;
+        return total;
     }
 
     boolean disconnectInputs() {
@@ -610,10 +645,7 @@ public class Transaction extends ChildMessage implements Serializable {
         if (!isCoinBase())
             return true;
 
-        if (getConfidence().getConfidenceType() != ConfidenceType.BUILDING)
-            return false;
-
-        return getConfidence().getDepthInBlocks() >= params.getSpendableCoinbaseDepth();
+        return getConfidence().isTransactionMature(params.getSpendableCoinbaseDepth());
     }
 
     @Override
@@ -880,7 +912,7 @@ public class Transaction extends ChildMessage implements Serializable {
      * @param anyoneCanPay Signing mode, see the SigHash enum for documentation.
      * @return A newly calculated signature object that wraps the r, s and sighash components.
      */
-    public synchronized  TransactionSignature calculateSignature(int inputIndex, ECKey key,
+    public synchronized TransactionSignature calculateSignature(int inputIndex, ECKey key,
                                                                  Script redeemScript,
                                                                  SigHash hashType, boolean anyoneCanPay) {
         Sha256Hash hash = hashForSignature(inputIndex, redeemScript.getProgram(), hashType, anyoneCanPay);
@@ -998,7 +1030,7 @@ public class Transaction extends ChildMessage implements Serializable {
                 // that position are "nulled out". Unintuitively, the value in a "null" transaction is set to -1.
                 this.outputs = new ArrayList<TransactionOutput>(this.outputs.subList(0, inputIndex + 1));
                 for (int i = 0; i < inputIndex; i++)
-                    this.outputs.set(i, new TransactionOutput(params, this, Coin.NEGATIVE_SATOSHI, new byte[] {}));
+                    this.outputs.set(i, new TransactionOutput(params, this, Coin.negativeSatoshi(params), new byte[] {}));
                 // The signature isn't broken by new versions of the transaction issued by other parties.
                 for (int i = 0; i < inputs.size(); i++)
                     if (i != inputIndex)
@@ -1102,7 +1134,6 @@ public class Transaction extends ChildMessage implements Serializable {
     public List<TransactionOutput> getWalletOutputs(TransactionBag transactionBag){
         maybeParse();
         List<TransactionOutput> walletOutputs = new LinkedList<TransactionOutput>();
-        Coin v = Coin.ZERO;
         for (TransactionOutput o : outputs) {
             if (!o.isMineOrWatched(transactionBag)) continue;
             walletOutputs.add(o);
@@ -1130,14 +1161,14 @@ public class Transaction extends ChildMessage implements Serializable {
 
     public synchronized TransactionConfidence getConfidence() {
         if (confidence == null) {
-            confidence = new TransactionConfidence(this);
+            confidence = new TransactionConfidence(this, params.getCoinDefinition());
         }
         return confidence;
     }
 
     /** Check if the transaction has a known confidence */
     public synchronized boolean hasConfidence() {
-        return confidence != null && confidence.getConfidenceType() != TransactionConfidence.ConfidenceType.UNKNOWN;
+        return confidence != null && !confidence.getConfidenceType().equals(TransactionConfidence.ConfidenceType.UNKNOWN);
     }
 
     @Override
@@ -1196,10 +1227,10 @@ public class Transaction extends ChildMessage implements Serializable {
         maybeParse();
         if (inputs.size() == 0 || outputs.size() == 0)
             throw new VerificationException.EmptyInputsOrOutputs();
-        if (this.getMessageSize() > Block.MAX_BLOCK_SIZE)
+        if (this.getMessageSize() > params.maxBlockSize)
             throw new VerificationException.LargerThanMaxBlockSize();
 
-        Coin valueOut = Coin.ZERO;
+        Coin valueOut = Coin.zero(params);
         HashSet<TransactionOutPoint> outpoints = new HashSet<TransactionOutPoint>();
         for (TransactionInput input : inputs) {
             if (outpoints.contains(input.getOutpoint()))
@@ -1212,7 +1243,7 @@ public class Transaction extends ChildMessage implements Serializable {
                     throw new VerificationException.NegativeValueOutput();
                 valueOut = valueOut.add(output.getValue());
                 // Duplicate the MAX_MONEY check from Coin.add() in case someone accidentally removes it.
-                if (valueOut.compareTo(NetworkParameters.MAX_MONEY) > 0)
+                if (valueOut.compareTo(params.maxMoney) > 0)
                     throw new IllegalArgumentException();
             }
         } catch (IllegalStateException e) {
@@ -1262,6 +1293,19 @@ public class Transaction extends ChildMessage implements Serializable {
         if (!isTimeLocked())
             return true;
         return false;
+    }
+
+    /**
+     * Parses the string either as a whole number of blocks, or if it contains slashes as a YYYY/MM/DD format date
+     * and returns the lock time in wire format.
+     */
+    public static long parseLockTimeStr(String lockTimeStr) throws ParseException {
+        if (lockTimeStr.indexOf("/") != -1) {
+            SimpleDateFormat format = new SimpleDateFormat("yyyy/MM/dd", Locale.US);
+            Date date = format.parse(lockTimeStr);
+            return date.getTime() / 1000;
+        }
+        return Long.parseLong(lockTimeStr);
     }
 
     /**
@@ -1320,4 +1364,21 @@ public class Transaction extends ChildMessage implements Serializable {
     public void setMemo(String memo) {
         this.memo = memo;
     }
+
+    public long getDefaultMinFee() {
+        return params.getCoinDefinition().getDefaultMinTransactionFee();
+    }
+
+    public TransactionExtension getTransactionExtension() {
+        return transactionExtension;
+    }
+
+    /**
+     * Used by protobuf wallet serializer {@link org.bitcoinj.store.WalletProtobufSerializer}.
+     */
+    public void setTransactionExtension(TransactionExtension extension) {
+        checkNotNull(extension);
+        transactionExtension = extension;
+    }
+
 }

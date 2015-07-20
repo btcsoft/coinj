@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   ~ Copyright 2012 Google Inc.
+  ~           2015 BitTechCenter Limited
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -19,16 +20,16 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <parent>
-    <groupId>org.bitcoinj</groupId>
-    <artifactId>bitcoinj-parent</artifactId>
-    <version>0.12.3</version>
+    <groupId>org.coinj</groupId>
+    <artifactId>multicoinj-parent</artifactId>
+    <version>0.12.3-1.0</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
 
-  <artifactId>bitcoinj-tools</artifactId>
+  <artifactId>multicoinj-tools</artifactId>
 
-  <name>bitcoinj Tools</name>
-  <description>A collection of useful tools that use the bitcoinj library to perform wallet operations</description>
+  <name>multicoinj Tools</name>
+  <description>A collection of useful tools that use the multicoinj library to perform wallet operations</description>
 
   <build>
 
@@ -69,13 +70,27 @@
               </executions>
           </plugin>
 
+          <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-source-plugin</artifactId>
+              <executions>
+                  <execution>
+                      <id>attach-sources</id>
+                      <phase>verify</phase>
+                      <goals>
+                          <goal>jar-no-fork</goal>
+                      </goals>
+                  </execution>
+              </executions>
+          </plugin>
+
       </plugins>
   </build>
 
   <dependencies>
     <dependency>
-      <groupId>org.bitcoinj</groupId>
-      <artifactId>bitcoinj-core</artifactId>
+      <groupId>org.coinj</groupId>
+      <artifactId>multicoinj-core</artifactId>
       <version>${project.parent.version}</version>
     </dependency>
     <dependency>

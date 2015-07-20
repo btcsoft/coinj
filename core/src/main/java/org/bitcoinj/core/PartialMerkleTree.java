@@ -1,6 +1,7 @@
 /**
  * Copyright 2012 The Bitcoin Developers
  * Copyright 2012 Matt Corallo
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -52,6 +53,7 @@ import static org.bitcoinj.core.Utils.*;
  * The size constraints follow from this.</pre></p>
  */
 public class PartialMerkleTree extends Message {
+    private static final long serialVersionUID = 6187361204529569458L;
     // the total number of transactions in the block
     private int transactionCount;
 
@@ -237,7 +239,7 @@ public class PartialMerkleTree extends Message {
         if (transactionCount == 0)
             throw new VerificationException("Got a CPartialMerkleTree with 0 transactions");
         // check for excessively high numbers of transactions
-        if (transactionCount > Block.MAX_BLOCK_SIZE / 60) // 60 is the lower bound for the size of a serialized CTransaction
+        if (transactionCount > params.maxBlockSize / 60) // 60 is the lower bound for the size of a serialized CTransaction
             throw new VerificationException("Got a CPartialMerkleTree with more transactions than is possible");
         // there can never be more hashes provided than one for every txid
         if (hashes.size() > transactionCount)

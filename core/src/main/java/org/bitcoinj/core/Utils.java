@@ -25,7 +25,6 @@ import com.google.common.io.BaseEncoding;
 import com.google.common.io.Resources;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.UnsignedLongs;
-
 import org.spongycastle.crypto.digests.RIPEMD160Digest;
 
 import java.io.ByteArrayOutputStream;
@@ -59,14 +58,10 @@ public class Utils {
         }
     }
 
-    /** The string that prefixes all text messages signed using Bitcoin keys. */
-    public static final String BITCOIN_SIGNED_MESSAGE_HEADER = "Bitcoin Signed Message:\n";
-    public static final byte[] BITCOIN_SIGNED_MESSAGE_HEADER_BYTES = BITCOIN_SIGNED_MESSAGE_HEADER.getBytes(Charsets.UTF_8);
-
     private static BlockingQueue<Boolean> mockSleepQueue;
 
     /**
-     * The regular {@link java.math.BigInteger#toByteArray()} method isn't quite what we often need: it appends a
+     * The regular {@link BigInteger#toByteArray()} method isn't quite what we often need: it appends a
      * leading zero to indicate that the number is positive and may need padding.
      *
      * @param b the integer to format into a byte array
@@ -159,6 +154,10 @@ public class Utils {
             byte[] first = digest.digest();
             return digest.digest(first);
         }
+    }
+
+    public static byte[] dSha256Hash(byte[] bytes) {
+        return reverseBytes(doubleDigest(bytes));
     }
 
     public static byte[] singleDigest(byte[] input, int offset, int length) {
@@ -396,7 +395,7 @@ public class Utils {
      * Advances (or rewinds) the mock clock by the given number of seconds.
      */
     public static Date rollMockClock(int seconds) {
-        return rollMockClockMillis(seconds * 1000);
+        return rollMockClockMillis((long) seconds * 1000L);
     }
 
     /**
@@ -509,11 +508,11 @@ public class Utils {
      *
      * <tt><p>[24] "Bitcoin Signed Message:\n" [message.length as a varint] message</p></tt>
      */
-    public static byte[] formatMessageForSigning(String message) {
+    public static byte[] formatMessageForSigning(String message, byte[] magicMessage) {
         try {
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            bos.write(BITCOIN_SIGNED_MESSAGE_HEADER_BYTES.length);
-            bos.write(BITCOIN_SIGNED_MESSAGE_HEADER_BYTES);
+            bos.write(magicMessage.length);
+            bos.write(magicMessage);
             byte[] messageBytes = message.getBytes(Charsets.UTF_8);
             VarInt size = new VarInt(messageBytes.length);
             bos.write(size.encode());
@@ -523,7 +522,7 @@ public class Utils {
             throw new RuntimeException(e);  // Cannot happen.
         }
     }
-    
+
     // 00000001, 00000010, 00000100, 00001000, ...
     private static final int bitMask[] = {0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80};
     

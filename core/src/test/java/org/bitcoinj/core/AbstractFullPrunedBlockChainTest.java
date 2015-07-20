@@ -24,6 +24,7 @@ import org.bitcoinj.store.BlockStoreException;
 import org.bitcoinj.store.FullPrunedBlockStore;
 import org.bitcoinj.utils.BlockFileLoader;
 import org.bitcoinj.utils.BriefLogFormatter;
+import org.coinj.api.CoinLocator;
 import org.junit.Before;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -33,7 +34,6 @@ import java.io.File;
 import java.lang.ref.WeakReference;
 import java.util.Arrays;
 
-import static org.bitcoinj.core.Coin.FIFTY_COINS;
 import static org.junit.Assert.*;
 
 /**
@@ -51,8 +51,10 @@ public abstract class AbstractFullPrunedBlockChainTest
     @Before
     public void setUp() throws Exception {
         BriefLogFormatter.init();
-        params = new UnitTestParams() {
-            @Override public int getInterval() {
+        params = new UnitTestParams(CoinLocator.discoverCoinDefinition()) {
+            private static final long serialVersionUID = 5322170662246803396L;
+
+            @Override public int getInterval(Block block, int height) {
                 return 10000;
             }
         };
@@ -132,7 +134,7 @@ public abstract class AbstractFullPrunedBlockChainTest
 
         rollingBlock = rollingBlock.createNextBlock(null);
         Transaction t = new Transaction(params);
-        t.addOutput(new TransactionOutput(params, t, FIFTY_COINS, new byte[] {}));
+        t.addOutput(new TransactionOutput(params, t, Coin.fiftyCoins(params.getCoinDefinition()), new byte[] {}));
         TransactionInput input = t.addInput(spendableOutput);
         // Invalid script.
         input.setScriptBytes(new byte[]{});
@@ -174,7 +176,7 @@ public abstract class AbstractFullPrunedBlockChainTest
         
         Transaction t = new Transaction(params);
         // Entirely invalid scriptPubKey
-        t.addOutput(new TransactionOutput(params, t, FIFTY_COINS, new byte[] {}));
+        t.addOutput(new TransactionOutput(params, t, Coin.fiftyCoins(params.getCoinDefinition()), new byte[] {}));
         t.addSignedInput(spendableOutput, new Script(spendableOutputScriptPubKey), outKey);
         rollingBlock.addTransaction(t);
         rollingBlock.solve();

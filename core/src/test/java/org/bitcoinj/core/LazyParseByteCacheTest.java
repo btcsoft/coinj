@@ -82,6 +82,7 @@ public class LazyParseByteCacheTest {
     @Before
     public void setUp() throws Exception {
         unitTestParams = UnitTestParams.get();
+        final Coin coin = coin(unitTestParams);
         wallet = new Wallet(unitTestParams);
         wallet.freshReceiveKey();
 
@@ -93,12 +94,12 @@ public class LazyParseByteCacheTest {
         
         //add a second input so can test granularity of byte cache.
         Transaction prevTx = new Transaction(unitTestParams);
-        TransactionOutput prevOut = new TransactionOutput(unitTestParams, prevTx, COIN, wallet.currentReceiveKey().toAddress(unitTestParams));
+        TransactionOutput prevOut = new TransactionOutput(unitTestParams, prevTx, coin, wallet.currentReceiveKey().toAddress(unitTestParams));
         prevTx.addOutput(prevOut);
         // Connect it.
         tx1.addInput(prevOut);
         
-        Transaction tx2 = createFakeTx(unitTestParams, COIN,
+        Transaction tx2 = createFakeTx(unitTestParams, coin,
                 new ECKey().toAddress(unitTestParams));
 
         Block b1 = createFakeBlock(blockStore, tx1, tx2).block;

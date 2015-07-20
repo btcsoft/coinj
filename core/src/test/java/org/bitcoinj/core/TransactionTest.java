@@ -1,5 +1,6 @@
 package org.bitcoinj.core;
 
+import org.coinj.api.CoinLocator;
 import org.bitcoinj.params.UnitTestParams;
 import org.bitcoinj.script.ScriptBuilder;
 import org.bitcoinj.testing.FakeTxBuilder;
@@ -23,9 +24,10 @@ public class TransactionTest {
 
     @Before
     public void setUp() throws Exception {
-        dummy = FakeTxBuilder.createFakeTx(PARAMS, Coin.COIN, ADDRESS);
+        final Coin coin = Coin.coin(PARAMS.getCoinDefinition());
+        dummy = FakeTxBuilder.createFakeTx(PARAMS, coin, ADDRESS);
         tx = new Transaction(PARAMS);
-        tx.addOutput(Coin.COIN, ADDRESS);
+        tx.addOutput(coin, ADDRESS);
         tx.addInput(dummy.getOutput(0));
     }
 
@@ -43,7 +45,7 @@ public class TransactionTest {
 
     @Test(expected = VerificationException.LargerThanMaxBlockSize.class)
     public void tooHuge() throws Exception {
-        tx.addInput(dummy.getOutput(0)).setScriptBytes(new byte[Block.MAX_BLOCK_SIZE]);
+        tx.addInput(dummy.getOutput(0)).setScriptBytes(new byte[PARAMS.maxBlockSize]);
         tx.verify();
     }
 
@@ -57,13 +59,13 @@ public class TransactionTest {
 
     @Test(expected = VerificationException.NegativeValueOutput.class)
     public void negativeOutput() throws Exception {
-        tx.getOutput(0).setValue(Coin.NEGATIVE_SATOSHI);
+        tx.getOutput(0).setValue(Coin.negativeSatoshi(PARAMS.getCoinDefinition()));
         tx.verify();
     }
 
     @Test(expected = VerificationException.ExcessiveValue.class)
     public void exceedsMaxMoney2() throws Exception {
-        Coin half = NetworkParameters.MAX_MONEY.divide(2).add(Coin.SATOSHI);
+        Coin half = Coin.coin().multiply(CoinLocator.discoverCoinDefinition().getMaxCoins()).divide(2).add(Coin.satoshi(PARAMS.getCoinDefinition()));
         tx.getOutput(0).setValue(half);
         tx.addOutput(half, ADDRESS);
         tx.verify();

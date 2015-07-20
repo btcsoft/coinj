@@ -25,12 +25,14 @@ import org.bitcoinj.core.Monetary;
 import com.google.common.math.LongMath;
 
 /**
- * Represents a monetary fiat value. It was decided to not fold this into {@link Coin} because of type safety. Fiat
+ * Represents a monetary fiat value. It was decided to not fold this into {@link org.bitcoinj.core.Coin} because of type safety. Fiat
  * values always come with an attached currency code.
  * 
  * This class is immutable.
  */
 public final class Fiat implements Monetary, Comparable<Fiat>, Serializable {
+
+    private static final long serialVersionUID = -4952930385014576689L;
 
     /**
      * The absolute value of exponent of the value of a "smallest unit" in scientific notation. We picked 4 rather than

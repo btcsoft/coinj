@@ -48,4 +48,7 @@ public class NativePeerEventListener implements PeerEventListener {
 
     @Override
     public native List<Message> getData(Peer peer, GetDataMessage m);
+
+    @Override
+    public native void onException(Throwable throwable);
 }

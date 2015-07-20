@@ -24,6 +24,9 @@ import java.util.List;
  * as an inventory message and lists the hashes of the missing items.
  */
 public class NotFoundMessage extends InventoryMessage {
+
+    private static final long serialVersionUID = -2985710971672664254L;
+
     public static int MIN_PROTOCOL_VERSION = 70001;
 
     public NotFoundMessage(NetworkParameters params) {

@@ -1,6 +1,7 @@
 /**
  * Copyright 2011 Google Inc.
  * Copyright 2014 Andreas Schildbach
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +18,7 @@
 
 package org.bitcoinj.core;
 
+import org.coinj.api.CoinSerializerExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,7 +28,6 @@ import java.io.UnsupportedEncodingException;
 import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
-import java.util.Map;
 
 import static org.bitcoinj.core.Utils.*;
 
@@ -46,13 +47,14 @@ public class BitcoinSerializer {
     private static final Logger log = LoggerFactory.getLogger(BitcoinSerializer.class);
     private static final int COMMAND_LEN = 12;
 
-    private NetworkParameters params;
-    private boolean parseLazy = false;
-    private boolean parseRetain = false;
+    private final NetworkParameters params;
+    private final boolean parseLazy;
+    private final boolean parseRetain;
 
-    private static Map<Class<? extends Message>, String> names = new HashMap<Class<? extends Message>, String>();
+    private final CoinSerializerExtension serializerExtension;
+    private final HashMap<Class<? extends Message>, String> names;
 
-    static {
+    private static void populateNamesMap(HashMap<Class<? extends Message>, String> names) {
         names.put(VersionMessage.class, "version");
         names.put(InventoryMessage.class, "inv");
         names.put(Block.class, "block");
@@ -95,6 +97,10 @@ public class BitcoinSerializer {
         this.params = params;
         this.parseLazy = parseLazy;
         this.parseRetain = parseRetain;
+        names = new HashMap<Class<? extends Message>, String>();
+        serializerExtension = params.getCoinDefinition().createCoinSerializerExtension();
+        populateNamesMap(names);
+        serializerExtension.retrofitNamesMap(names);
     }
 
     /**
@@ -241,8 +247,14 @@ public class BitcoinSerializer {
         } else if (command.equals("getutxos")) {
             return new GetUTXOsMessage(params, payloadBytes);
         } else {
-            log.warn("No support for deserializing message with name {}", command);
-            return new UnknownMessage(params, command, payloadBytes);
+            final Message extendedMessage = serializerExtension.attemptToMakeMessage(params, command, length, payloadBytes, hash, checksum);
+
+            if (extendedMessage == null) {
+                log.warn("No support for deserializing message with name {}", command);
+                return new UnknownMessage(params, command, payloadBytes);
+            }
+
+            return extendedMessage;
         }
         if (checksum != null)
             message.setChecksum(checksum);
@@ -261,9 +273,8 @@ public class BitcoinSerializer {
                 if (magicCursor < 0) {
                     // We found the magic sequence.
                     return;
-                } else {
-                    // We still have further to go to find the next message.
                 }
+                // Or we still have further to go to find the next message.
             } else {
                 magicCursor = 3;
             }

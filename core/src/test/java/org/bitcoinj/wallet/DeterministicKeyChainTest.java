@@ -19,15 +19,12 @@ package org.bitcoinj.wallet;
 import org.bitcoinj.core.*;
 import org.bitcoinj.crypto.DeterministicHierarchy;
 import org.bitcoinj.crypto.DeterministicKey;
+import org.bitcoinj.params.MainNetParams;
 import org.bitcoinj.params.UnitTestParams;
 import org.bitcoinj.store.UnreadableWalletException;
 import org.bitcoinj.utils.BriefLogFormatter;
 import org.bitcoinj.utils.Threading;
 import com.google.common.collect.Lists;
-import org.bitcoinj.wallet.AbstractKeyChainEventListener;
-import org.bitcoinj.wallet.DeterministicKeyChain;
-import org.bitcoinj.wallet.KeyChain;
-import org.bitcoinj.wallet.Protos;
 import org.junit.Before;
 import org.junit.Test;
 import org.spongycastle.crypto.params.KeyParameter;
@@ -41,6 +38,7 @@ import static org.junit.Assert.*;
 
 public class DeterministicKeyChainTest {
     private DeterministicKeyChain chain;
+    private NetworkParameters params;
     private final byte[] ENTROPY = Sha256Hash.create("don't use a string seed like this in real life".getBytes()).getBytes();
 
     @Before
@@ -51,6 +49,7 @@ public class DeterministicKeyChainTest {
         long secs = 1389353062L;
         chain = new DeterministicKeyChain(ENTROPY, "", secs);
         chain.setLookaheadSize(10);
+        params = MainNetParams.get();
         assertEquals(secs, checkNotNull(chain.getSeed()).getCreationTimeSeconds());
     }
 
@@ -83,7 +82,7 @@ public class DeterministicKeyChainTest {
     @Test
     public void signMessage() throws Exception {
         ECKey key = chain.getKey(KeyChain.KeyPurpose.RECEIVE_FUNDS);
-        key.verifyMessage("test", key.signMessage("test"));
+        key.verifyMessage("test", key.signMessage("test", params), params);
     }
 
     @Test

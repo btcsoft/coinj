@@ -114,7 +114,7 @@ public class BlockChain extends AbstractBlockChain {
     }
 
     @Override
-    protected TransactionOutputChanges connectTransactions(int height, Block block) {
+    protected TransactionOutputChanges connectTransactions(Block block, Block prevBlock, int prevHeight) {
         // Don't have to do anything as this is only called if(shouldVerifyTransactions())
         throw new UnsupportedOperationException();
     }

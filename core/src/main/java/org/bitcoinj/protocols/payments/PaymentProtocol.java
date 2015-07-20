@@ -46,11 +46,6 @@ import java.util.List;
  */
 public class PaymentProtocol {
 
-    // MIME types as defined in BIP71.
-    public static final String MIMETYPE_PAYMENTREQUEST = "application/bitcoin-paymentrequest";
-    public static final String MIMETYPE_PAYMENT = "application/bitcoin-payment";
-    public static final String MIMETYPE_PAYMENTACK = "application/bitcoin-paymentack";
-
     /**
      * Create a payment request with one standard pay to address output. You may want to sign the request using
      * {@link #signPaymentRequest}. Use {@link Protos.PaymentRequest.Builder#build} to get the actual payment
@@ -398,7 +393,7 @@ public class PaymentProtocol {
     public static Protos.Output createPayToAddressOutput(@Nullable Coin amount, Address address) {
         Protos.Output.Builder output = Protos.Output.newBuilder();
         if (amount != null) {
-            if (amount.compareTo(NetworkParameters.MAX_MONEY) > 0)
+            if (amount.compareTo(amount.getMaxMoney()) > 0)
                 throw new IllegalArgumentException("Amount too big: " + amount);
             output.setAmount(amount.value);
         } else {

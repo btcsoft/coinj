@@ -41,7 +41,7 @@ public class FetchTransactions {
         PeerGroup peerGroup = new PeerGroup(params, chain);
         peerGroup.startAsync();
         peerGroup.awaitRunning();
-        peerGroup.addAddress(new PeerAddress(InetAddress.getLocalHost(), params.getPort()));
+        peerGroup.addAddress(new PeerAddress(InetAddress.getLocalHost(), params.getPort(), params.protocolVersion));
         peerGroup.waitForPeers(1).get();
         Peer peer = peerGroup.getConnectedPeers().get(0);
 

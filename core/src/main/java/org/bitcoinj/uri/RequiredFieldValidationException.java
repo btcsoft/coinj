@@ -1,7 +1,7 @@
 package org.bitcoinj.uri;
 
 /**
- * <p>Exception to provide the following to {@link BitcoinURI}:</p>
+ * <p>Exception to provide the following to {@link CoinURI}:</p>
  * <ul>
  * <li>Provision of parsing error messages</li>
  * </ul>
@@ -12,7 +12,7 @@ package org.bitcoinj.uri;
  * @since 0.3.0
  *         
  */
-public class RequiredFieldValidationException extends BitcoinURIParseException {
+public class RequiredFieldValidationException extends CoinURIParseException {
 
     public RequiredFieldValidationException(String s) {
         super(s);

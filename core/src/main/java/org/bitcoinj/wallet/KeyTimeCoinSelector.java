@@ -51,7 +51,7 @@ public class KeyTimeCoinSelector implements CoinSelector {
     public CoinSelection select(Coin target, List<TransactionOutput> candidates) {
         try {
             LinkedList<TransactionOutput> gathered = Lists.newLinkedList();
-            Coin valueGathered = Coin.ZERO;
+            Coin valueGathered = Coin.zero(wallet.getParams().getCoinDefinition());
             for (TransactionOutput output : candidates) {
                 if (ignorePending && !isConfirmed(output))
                     continue;

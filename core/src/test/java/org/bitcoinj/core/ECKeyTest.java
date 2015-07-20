@@ -17,6 +17,12 @@
 
 package org.bitcoinj.core;
 
+import com.google.common.collect.Lists;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
+import com.google.protobuf.ByteString;
 import org.bitcoinj.crypto.EncryptedData;
 import org.bitcoinj.crypto.KeyCrypter;
 import org.bitcoinj.crypto.KeyCrypterScrypt;
@@ -25,12 +31,6 @@ import org.bitcoinj.params.MainNetParams;
 import org.bitcoinj.params.TestNet3Params;
 import org.bitcoinj.params.UnitTestParams;
 import org.bitcoinj.utils.BriefLogFormatter;
-import com.google.common.collect.Lists;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListeningExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
-import com.google.protobuf.ByteString;
 import org.bitcoinj.wallet.Protos;
 import org.bitcoinj.wallet.Protos.ScryptParameters;
 import org.junit.Before;
@@ -49,15 +49,16 @@ import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 
+import static com.google.common.base.Preconditions.checkNotNull;
 import static org.bitcoinj.core.Utils.HEX;
 import static org.bitcoinj.core.Utils.reverseBytes;
-import static com.google.common.base.Preconditions.checkNotNull;
 import static org.junit.Assert.*;
 
 public class ECKeyTest {
     private static final Logger log = LoggerFactory.getLogger(ECKeyTest.class);
 
     private SecureRandom secureRandom;
+    private NetworkParameters params;
 
     private KeyCrypter keyCrypter;
 
@@ -67,6 +68,7 @@ public class ECKeyTest {
     @Before
     public void setUp() throws Exception {
         secureRandom = new SecureRandom();
+        params = MainNetParams.get();
 
         byte[] salt = new byte[KeyCrypterScrypt.SALT_LENGTH];
         secureRandom.nextBytes(salt);
@@ -215,12 +217,12 @@ public class ECKeyTest {
     public void signTextMessage() throws Exception {
         ECKey key = new ECKey();
         String message = "聡中本";
-        String signatureBase64 = key.signMessage(message);
+        String signatureBase64 = key.signMessage(message, params);
         log.info("Message signed with " + key.toAddress(MainNetParams.get()) + ": " + signatureBase64);
         // Should verify correctly.
-        key.verifyMessage(message, signatureBase64);
+        key.verifyMessage(message, signatureBase64, params);
         try {
-            key.verifyMessage("Evil attacker says hello!", signatureBase64);
+            key.verifyMessage("Evil attacker says hello!", signatureBase64, params);
             fail();
         } catch (SignatureException e) {
             // OK.
@@ -233,7 +235,7 @@ public class ECKeyTest {
         String message = "hello";
         String sigBase64 = "HxNZdo6ggZ41hd3mM3gfJRqOQPZYcO8z8qdX2BwmpbF11CaOQV+QiZGGQxaYOncKoNW61oRuSMMF8udfK54XqI8=";
         Address expectedAddress = new Address(MainNetParams.get(), "14YPSNPi6NSXnUxtPAsyJSuw3pv7AU3Cag");
-        ECKey key = ECKey.signedMessageToKey(message, sigBase64);
+        ECKey key = ECKey.signedMessageToKey(message, sigBase64, params);
         Address gotAddress = key.toAddress(MainNetParams.get());
         assertEquals(expectedAddress, gotAddress);
     }

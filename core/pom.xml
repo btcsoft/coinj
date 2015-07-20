@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   ~ Copyright 2012 Google Inc.
+  ~           2015 BitTechCenter Limited
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -20,19 +21,19 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>org.bitcoinj</groupId>
-        <artifactId>bitcoinj-parent</artifactId>
-        <version>0.12.3</version>
+        <groupId>org.coinj</groupId>
+        <artifactId>multicoinj-parent</artifactId>
+        <version>0.12.3-1.0</version>
     </parent>
 
-    <artifactId>bitcoinj-core</artifactId>
+    <artifactId>multicoinj-core</artifactId>
 
-    <name>bitcoinj</name>
-    <description>A Java Bitcoin library</description>
+    <name>multicoinj</name>
+    <description>A Java Universal Crypto-coin library</description>
 
     <packaging>jar</packaging>
 
-    <url>https://bitcoinj.github.io</url>
+    <url>https://coinj.github.io</url>
 
     <licenses>
         <license>
@@ -45,8 +46,8 @@
     <!-- Dummy block to make Maven Central happy: authors list is in AUTHORS -->
     <developers>
         <developer>
-            <name>The bitcoinj team</name>
-            <email>bitcoinj@googlegroups.com</email>
+            <name>BitTechCenter Limited</name>
+            <email>contact@btcsoft.com</email>
         </developer>
     </developers>
 
@@ -78,6 +79,7 @@
                                         <exec executable="protoc" failonerror="true">
                                             <arg value="--java_out=${project.basedir}/src/main/java"/>
                                             <arg value="-I${project.basedir}/src"/>
+                                            <!--suppress MavenModelInspection -->
                                             <arg line="${proto.files}"/>
                                         </exec>
                                     </tasks>
@@ -136,7 +138,6 @@
                         <link>http://docs.guava-libraries.googlecode.com/git-history/release/javadoc/</link>
                     </links>
                     <detectJavaApiLink/>
-                    <quiet>true</quiet>
                 </configuration>
             </plugin>
 
@@ -165,7 +166,8 @@
                                     <!-- Format is URN of groupId:artifactId:version:type:classifier:scope:hash -->
                                     <!-- classifier is "null" if not present -->
                                     <urns>
-                                        <urn>org.bitcoinj:orchid:1.0:jar:null:compile:bd98285f39f88875bb91bde940d6ca2d020edaa4</urn>
+                                        <urn>org.coinj:orchid:1.0:jar:null:compile:c4c179e0bccbdaff5a740cd0a69caf097bfa5de1</urn>
+                                        <urn>org.coinj:wallet-protos-default:0.12.3-1.0:jar:null:compile:a72d05016f230d0749ed31d0b674232e87f5ce29</urn>
                                         <urn>cglib:cglib-nodep:2.2:jar:null:test:59afed7ab65e7ec6585d5bc60556c3cbd203532b</urn>
                                         <urn>com.google.code.findbugs:jsr305:2.0.1:jar:null:compile:516c03b21d50a644d538de0f0369c620989cd8f0</urn>
                                         <urn>com.google.guava:guava:16.0.1:jar:null:compile:5fa98cd1a63c99a44dd8d3b77e4762b066a5d0c5</urn>
@@ -278,8 +280,8 @@
                             <artifactItems>
                                 <artifactItem>
                                     <outputDirectory>target/test-classes/</outputDirectory>
-                                    <groupId>org.bitcoinj</groupId>
-                                    <artifactId>bitcoinj-core</artifactId>
+                                    <groupId>org.coinj</groupId>
+                                    <artifactId>multicoinj-core</artifactId>
                                     <version>${project.version}</version>
                                 </artifactItem>
                             </artifactItems>
@@ -331,6 +333,17 @@
 
     <dependencies>
         <dependency>
+            <groupId>org.coinj</groupId>
+            <artifactId>wallet-protos-default</artifactId>
+            <version>${project.parent.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.google.protobuf</groupId>
+                    <artifactId>protobuf-java</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
             <version>4.11</version>
@@ -350,6 +363,18 @@
             <artifactId>slf4j-jdk14</artifactId>
             <version>1.7.6</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.coinj</groupId>
+            <artifactId>bitcoin-core</artifactId>
+            <version>1.01-SNAPSHOT</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <artifactId>multicoinj-core</artifactId>
+                    <groupId>org.coinj</groupId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -403,7 +428,7 @@
         </dependency>
         -->
         <dependency>
-            <groupId>org.bitcoinj</groupId>
+            <groupId>org.coinj</groupId>
             <artifactId>orchid</artifactId>
             <version>1.0</version>
         </dependency>

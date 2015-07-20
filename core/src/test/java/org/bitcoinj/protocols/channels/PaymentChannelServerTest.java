@@ -1,10 +1,12 @@
 package org.bitcoinj.protocols.channels;
 
+import org.coinj.api.CoinLocator;
 import org.bitcoinj.core.Coin;
 import org.bitcoinj.core.TransactionBroadcaster;
 import org.bitcoinj.core.Utils;
 import org.bitcoinj.core.Wallet;
 import org.bitcoin.paymentchannel.Protos;
+import org.bitcoinj.params.UnitTestParams;
 import org.easymock.Capture;
 import org.junit.Before;
 import org.junit.Test;
@@ -20,6 +22,7 @@ public class PaymentChannelServerTest {
     private static final int CLIENT_MAJOR_VERSION = 1;
     private static final long SERVER_MAJOR_VERSION = 1;
     public Wallet wallet;
+    public Coin cent;
     public PaymentChannelServer.ServerConnection connection;
     public PaymentChannelServer dut;
     public Capture<? extends TwoWayChannelMessage> serverVersionCapture;
@@ -29,6 +32,7 @@ public class PaymentChannelServerTest {
     public void setUp() {
         broadcaster = createMock(TransactionBroadcaster.class);
         wallet = createMock(Wallet.class);
+        cent = Coin.cent(CoinLocator.discoverCoinDefinition());
         connection = createMock(PaymentChannelServer.ServerConnection.class);
         serverVersionCapture = new Capture<TwoWayChannelMessage>();
         connection.sendToClient(capture(serverVersionCapture));
@@ -42,8 +46,11 @@ public class PaymentChannelServerTest {
         final Capture<TwoWayChannelMessage> initiateCapture = new Capture<TwoWayChannelMessage>();
         connection.sendToClient(capture(initiateCapture));
         replay(connection);
+        expect(wallet.freshReceiveKey()).andReturn(null);
+        expect(wallet.getParams()).andReturn(UnitTestParams.get());
+        replay(wallet);
 
-        dut = new PaymentChannelServer(broadcaster, wallet, Coin.CENT, connection);
+        dut = new PaymentChannelServer(broadcaster, wallet, cent, connection);
 
         dut.connectionOpen();
         dut.receiveMessage(message);
@@ -60,9 +67,12 @@ public class PaymentChannelServerTest {
         final TwoWayChannelMessage message = createClientVersionMessage(timeWindow);
         final Capture<TwoWayChannelMessage> initiateCapture = new Capture<TwoWayChannelMessage>();
         connection.sendToClient(capture(initiateCapture));
+        expect(wallet.freshReceiveKey()).andReturn(null);
+        expect(wallet.getParams()).andReturn(UnitTestParams.get());
+        replay(wallet);
 
         replay(connection);
-        dut = new PaymentChannelServer(broadcaster, wallet, Coin.CENT, minTimeWindow, 40000, connection);
+        dut = new PaymentChannelServer(broadcaster, wallet, cent, minTimeWindow, 40000, connection);
 
         dut.connectionOpen();
         dut.receiveMessage(message);
@@ -80,8 +90,11 @@ public class PaymentChannelServerTest {
         final Capture<TwoWayChannelMessage> initiateCapture = new Capture<TwoWayChannelMessage>();
         connection.sendToClient(capture(initiateCapture));
         replay(connection);
+        expect(wallet.freshReceiveKey()).andReturn(null);
+        expect(wallet.getParams()).andReturn(UnitTestParams.get());
+        replay(wallet);
 
-        dut = new PaymentChannelServer(broadcaster, wallet, Coin.CENT, 20000, maxTimeWindow, connection);
+        dut = new PaymentChannelServer(broadcaster, wallet, cent, 20000, maxTimeWindow, connection);
 
         dut.connectionOpen();
         dut.receiveMessage(message);
@@ -93,12 +106,12 @@ public class PaymentChannelServerTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void shouldNotAllowTimeWindowLessThan2h() {
-        dut = new PaymentChannelServer(broadcaster, wallet, Coin.CENT, 7199, 40000, connection);
+        dut = new PaymentChannelServer(broadcaster, wallet, cent, 7199, 40000, connection);
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void shouldNotAllowNegativeTimeWindow() {
-        dut = new PaymentChannelServer(broadcaster, wallet, Coin.CENT, 40001, 40000, connection);
+        dut = new PaymentChannelServer(broadcaster, wallet, cent, 40001, 40000, connection);
     }
 
     @Test
@@ -107,9 +120,12 @@ public class PaymentChannelServerTest {
         final Capture<TwoWayChannelMessage> initiateCapture = new Capture<TwoWayChannelMessage>();
         connection.sendToClient(capture(initiateCapture));
         replay(connection);
+        expect(wallet.freshReceiveKey()).andReturn(null);
+        expect(wallet.getParams()).andReturn(UnitTestParams.get());
+        replay(wallet);
         final int expire = 24 * 60 * 60 - 60;  // This the default defined in paymentchannel.proto
 
-        dut = new PaymentChannelServer(broadcaster, wallet, Coin.CENT, expire, expire, connection);
+        dut = new PaymentChannelServer(broadcaster, wallet, cent, expire, expire, connection);
         dut.connectionOpen();
         long expectedExpire = Utils.currentTimeSeconds() + expire;
         dut.receiveMessage(message);

@@ -22,6 +22,8 @@ import org.bitcoinj.params.Networks;
 import org.bitcoinj.params.TestNet3Params;
 import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptBuilder;
+import org.coinj.api.CoinDefinition;
+import org.coinj.api.CoinLocator;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -102,17 +104,20 @@ public class AddressTest {
     public void getAltNetwork() throws Exception {
         // An alternative network
         class AltNetwork extends MainNetParams {
-            AltNetwork() {
-                super();
+            private static final long serialVersionUID = 5884508751102191388L;
+
+            AltNetwork(CoinDefinition def) {
+                super(def);
                 id = "alt.network";
                 addressHeader = 48;
                 p2shHeader = 5;
                 acceptableAddressCodes = new int[] { addressHeader, p2shHeader };
             }
         }
-        AltNetwork altNetwork = new AltNetwork();
+        final CoinDefinition def = CoinLocator.discoverCoinDefinition();
+        AltNetwork altNetwork = new AltNetwork(def);
         // Add new network params
-        Networks.register(altNetwork);
+        Networks.register(def, altNetwork);
         // Check if can parse address
         NetworkParameters params = Address.getParametersFromAddress("LLxSnHLN2CYyzB5eWTR9K9rS9uWtbTQFb6");
         assertEquals(altNetwork.getId(), params.getId());
@@ -120,11 +125,11 @@ public class AddressTest {
         params = Address.getParametersFromAddress("17kzeh4N8g49GFvdDzSf8PjaPfyoD1MndL");
         assertEquals(MainNetParams.get().getId(), params.getId());
         // Unregister network
-        Networks.unregister(altNetwork);
+        Networks.unregister(def, altNetwork);
         try {
             Address.getParametersFromAddress("LLxSnHLN2CYyzB5eWTR9K9rS9uWtbTQFb6");
             fail();
-        } catch (AddressFormatException e) { }
+        } catch (AddressFormatException ignore) { }
     }
     
     @Test

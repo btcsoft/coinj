@@ -76,4 +76,5 @@ public class MemoryBlockStore implements BlockStore {
     public void close() {
         blockMap = null;
     }
+
 }

@@ -17,6 +17,18 @@
 
 package org.bitcoinj.tools;
 
+import com.google.common.base.Charsets;
+import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableList;
+import com.google.common.io.Resources;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.protobuf.ByteString;
+import com.subgraph.orchid.TorClient;
+import joptsimple.OptionParser;
+import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
+import joptsimple.util.DateConverter;
 import org.bitcoinj.core.*;
 import org.bitcoinj.core.Wallet.BalanceType;
 import org.bitcoinj.crypto.DeterministicKey;
@@ -31,25 +43,14 @@ import org.bitcoinj.protocols.payments.PaymentProtocol;
 import org.bitcoinj.protocols.payments.PaymentProtocolException;
 import org.bitcoinj.protocols.payments.PaymentSession;
 import org.bitcoinj.store.*;
-import org.bitcoinj.uri.BitcoinURI;
-import org.bitcoinj.uri.BitcoinURIParseException;
+import org.bitcoinj.uri.CoinURI;
+import org.bitcoinj.uri.CoinURIParseException;
 import org.bitcoinj.utils.BriefLogFormatter;
 import org.bitcoinj.wallet.DeterministicSeed;
 import org.bitcoinj.wallet.DeterministicUpgradeRequiredException;
 import org.bitcoinj.wallet.DeterministicUpgradeRequiresPassword;
-import com.google.common.base.Charsets;
-import com.google.common.base.Splitter;
-import com.google.common.collect.ImmutableList;
-import com.google.common.io.Resources;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.protobuf.ByteString;
-import com.subgraph.orchid.TorClient;
-import joptsimple.OptionParser;
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-import joptsimple.util.DateConverter;
 import org.bitcoinj.wallet.Protos;
+import org.coinj.api.CoinLocator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.spongycastle.crypto.params.KeyParameter;
@@ -72,8 +73,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
 
-import static org.bitcoinj.core.Coin.parseCoin;
 import static com.google.common.base.Preconditions.checkNotNull;
+import static org.bitcoinj.core.Coin.parseCoin;
 
 /**
  * A command line tool for manipulating wallets and working with Bitcoin.
@@ -344,7 +345,7 @@ public class WalletTool {
                     System.err.println("--payment-request and --output cannot be used together.");
                     return;
                 } else if (options.has(outputFlag)) {
-                    Coin fee = Coin.ZERO;
+                    Coin fee = Coin.zero(params);
                     if (options.has("fee")) {
                         fee = parseCoin((String)options.valueOf("fee"));
                     }
@@ -355,7 +356,7 @@ public class WalletTool {
                     boolean allowUnconfirmed = options.has("allow-unconfirmed");
                     send(outputFlag.values(options), fee, lockTime, allowUnconfirmed);
                 } else if (options.has(paymentRequestLocation)) {
-                    sendPaymentRequest(paymentRequestLocation.value(options), !options.has("no-pki"));
+                    sendPaymentRequest(paymentRequestLocation.value(options), params, !options.has("no-pki"));
                 } else {
                     System.err.println("You must specify a --payment-request or at least one --output=addr:value.");
                     return;
@@ -608,15 +609,15 @@ public class WalletTool {
         return Long.parseLong(lockTimeStr);
     }
 
-    private static void sendPaymentRequest(String location, boolean verifyPki) {
+    private static void sendPaymentRequest(String location, NetworkParameters params, boolean verifyPki) {
         if (location.startsWith("http") || location.startsWith("bitcoin")) {
             try {
                 ListenableFuture<PaymentSession> future;
                 if (location.startsWith("http")) {
-                    future = PaymentSession.createFromUrl(location, verifyPki);
+                    future = PaymentSession.createFromUrl(location, params.getCoinDefinition(), verifyPki);
                 } else {
-                    BitcoinURI paymentRequestURI = new BitcoinURI(location);
-                    future = PaymentSession.createFromBitcoinUri(paymentRequestURI, verifyPki);
+                    CoinURI paymentRequestURI = new CoinURI(location);
+                    future = PaymentSession.createFromBitcoinUri(paymentRequestURI, CoinLocator.discoverCoinDefinition(), verifyPki);
                 }
                 PaymentSession session = future.get();
                 if (session != null) {
@@ -628,7 +629,7 @@ public class WalletTool {
             } catch (PaymentProtocolException e) {
                 System.err.println("Error creating payment session " + e.getMessage());
                 System.exit(1);
-            } catch (BitcoinURIParseException e) {
+            } catch (CoinURIParseException e) {
                 System.err.println("Invalid bitcoin uri: " + e.getMessage());
                 System.exit(1);
             } catch (InterruptedException e) {
@@ -835,7 +836,7 @@ public class WalletTool {
             String[] peerAddrs = peersFlag.split(",");
             for (String peer : peerAddrs) {
                 try {
-                    peers.addAddress(new PeerAddress(InetAddress.getByName(peer), params.getPort()));
+                    peers.addAddress(new PeerAddress(InetAddress.getByName(peer), params.getPort(), params.protocolVersion));
                 } catch (UnknownHostException e) {
                     System.err.println("Could not understand peer domain name/IP address: " + peer + ": " + e.getMessage());
                     System.exit(1);

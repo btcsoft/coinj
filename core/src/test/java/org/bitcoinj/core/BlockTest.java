@@ -20,6 +20,7 @@ package org.bitcoinj.core;
 import org.bitcoinj.params.TestNet2Params;
 import org.bitcoinj.params.UnitTestParams;
 import org.bitcoinj.script.ScriptOpCodes;
+import org.coinj.api.CoinLocator;
 import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
@@ -33,7 +34,7 @@ import static org.bitcoinj.core.Utils.HEX;
 import static org.junit.Assert.*;
 
 public class BlockTest {
-    static final NetworkParameters params = TestNet2Params.get();
+    static final NetworkParameters params = new TestNet2Params(CoinLocator.discoverCoinDefinition());
 
     public static final byte[] blockBytes;
 
@@ -80,7 +81,7 @@ public class BlockTest {
         }
         // Blocks contain their own difficulty target. The BlockChain verification mechanism is what stops real blocks
         // from containing artificially weak difficulties.
-        block.setDifficultyTarget(Block.EASIEST_DIFFICULTY_TARGET);
+        block.setDifficultyTarget(params.getCoinDefinition().getEasiestDifficultyTarget());
         // Now it should pass.
         block.verify();
         // Break the nonce again at the lower difficulty level so we can try solving for it.
@@ -165,7 +166,7 @@ public class BlockTest {
         //assertTrue(tx.length == tx.bitcoinSerialize().length && tx.length == 8);
         byte[] outputScript = new byte[10];
         Arrays.fill(outputScript, (byte) ScriptOpCodes.OP_FALSE);
-        tx.addOutput(new TransactionOutput(params, null, Coin.SATOSHI, outputScript));
+        tx.addOutput(new TransactionOutput(params, null, Coin.satoshi(params.getCoinDefinition()), outputScript));
         tx.addInput(new TransactionInput(params, null, new byte[] {(byte) ScriptOpCodes.OP_FALSE},
                 new TransactionOutPoint(params, 0, Sha256Hash.create(new byte[] {1}))));
         int origTxLength = 8 + 2 + 8 + 1 + 10 + 40 + 1 + 1;

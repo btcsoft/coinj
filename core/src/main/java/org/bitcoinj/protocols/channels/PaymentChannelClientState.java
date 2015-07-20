@@ -16,18 +16,19 @@
 
 package org.bitcoinj.protocols.channels;
 
-import org.bitcoinj.core.*;
-import org.bitcoinj.crypto.TransactionSignature;
-import org.bitcoinj.script.Script;
-import org.bitcoinj.script.ScriptBuilder;
-import org.bitcoinj.utils.Threading;
-import org.bitcoinj.wallet.AllowUnconfirmedCoinSelector;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import org.bitcoinj.core.*;
+import org.bitcoinj.crypto.TransactionSignature;
+import org.bitcoinj.script.Script;
+import org.bitcoinj.script.ScriptBuilder;
+import org.bitcoinj.utils.Threading;
+import org.bitcoinj.wallet.AllowUnconfirmedCoinSelector;
+import org.coinj.api.CoinDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -149,7 +150,7 @@ public class PaymentChannelClientState {
      * @param myKey a freshly generated private key for this channel.
      * @param serverMultisigKey a public key retrieved from the server used for the initial multisig contract
      * @param value how many satoshis to put into this contract. If the channel reaches this limit, it must be closed.
-     *              It is suggested you use at least {@link Utils#CENT} to avoid paying fees if you need to spend the refund transaction
+     *              It is suggested you use at least "cent" to avoid paying fees if you need to spend the refund transaction
      * @param expiryTimeInSeconds At what point (UNIX timestamp +/- a few hours) the channel will expire
      *
      * @throws VerificationException If either myKey's pubkey or serverMultisigKey's pubkey are non-canonical (ie invalid)
@@ -263,13 +264,15 @@ public class PaymentChannelClientState {
         refundTx = new Transaction(params);
         refundTx.addInput(multisigOutput).setSequenceNumber(0);   // Allow replacement when it's eventually reactivated.
         refundTx.setLockTime(expiryTime);
-        if (totalValue.compareTo(Coin.CENT) < 0) {
+        if (totalValue.compareTo(totalValue.getCent()) < 0) {
+            final CoinDefinition def = params.getCoinDefinition();
+            final Coin minTxFee = Coin.valueOf(def.getDefaultMinTransactionFee(), def);
             // Must pay min fee.
-            final Coin valueAfterFee = totalValue.subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE);
-            if (Transaction.MIN_NONDUST_OUTPUT.compareTo(valueAfterFee) > 0)
+            final Coin valueAfterFee = totalValue.subtract(minTxFee);
+            if (Coin.valueOf(def.getDustLimit(), def).compareTo(valueAfterFee) > 0)
                 throw new ValueOutOfRangeException("totalValue too small to use");
             refundTx.addOutput(valueAfterFee, myKey.toAddress(params));
-            refundFees = multisigFee.add(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE);
+            refundFees = multisigFee.add(minTxFee);
         } else {
             refundTx.addOutput(totalValue, myKey.toAddress(params));
             refundFees = multisigFee;
@@ -396,11 +399,13 @@ public class PaymentChannelClientState {
         checkNotNull(size);  // Validity of size will be checked by makeUnsignedChannelContract.
         if (size.signum() < 0)
             throw new ValueOutOfRangeException("Tried to decrement payment");
+        final Coin zero = valueToMe.getZero();
         Coin newValueToMe = valueToMe.subtract(size);
-        if (newValueToMe.compareTo(Transaction.MIN_NONDUST_OUTPUT) < 0 && newValueToMe.signum() > 0) {
+        final CoinDefinition def = wallet.getParams().getCoinDefinition();
+        if (newValueToMe.compareTo(Coin.valueOf(def.getDustLimit(), def)) < 0 && newValueToMe.signum() > 0) {
             log.info("New value being sent back as change was smaller than minimum nondust output, sending all");
             size = valueToMe;
-            newValueToMe = Coin.ZERO;
+            newValueToMe = zero;
         }
         if (newValueToMe.signum() < 0)
             throw new ValueOutOfRangeException("Channel has too little money to pay " + size + " satoshis");
@@ -409,7 +414,7 @@ public class PaymentChannelClientState {
         Transaction.SigHash mode;
         // If we spent all the money we put into this channel, we (by definition) don't care what the outputs are, so
         // we sign with SIGHASH_NONE to let the server do what it wants.
-        if (newValueToMe.equals(Coin.ZERO))
+        if (newValueToMe.equals(zero))
             mode = Transaction.SigHash.NONE;
         else
             mode = Transaction.SigHash.SINGLE;

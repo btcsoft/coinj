@@ -17,6 +17,10 @@
 
 package org.bitcoinj.kits;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.util.concurrent.AbstractIdleService;
+import com.google.common.util.concurrent.MoreExecutors;
+import com.subgraph.orchid.TorClient;
 import org.bitcoinj.core.*;
 import org.bitcoinj.net.discovery.DnsDiscovery;
 import org.bitcoinj.protocols.channels.StoredPaymentChannelClientStates;
@@ -26,12 +30,8 @@ import org.bitcoinj.store.SPVBlockStore;
 import org.bitcoinj.store.WalletProtobufSerializer;
 import org.bitcoinj.wallet.DeterministicSeed;
 import org.bitcoinj.wallet.KeyChainGroup;
-import com.google.common.collect.ImmutableList;
-import com.google.common.util.concurrent.AbstractIdleService;
-import com.google.common.util.concurrent.MoreExecutors;
-import com.google.common.util.concurrent.Service;
-import com.subgraph.orchid.TorClient;
 import org.bitcoinj.wallet.Protos;
+import org.coinj.api.CoinDefinition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,7 +65,7 @@ import static com.google.common.base.Preconditions.checkState;
  * means doing potentially blocking file IO, generating keys and other potentially intensive operations. By running it
  * on a background thread, there's no risk of accidentally causing UI lag.</p>
  *
- * <p>Note that {@link #awaitRunning()} can throw an unchecked {@link java.lang.IllegalStateException}
+ * <p>Note that {@link #awaitRunning()} can throw an unchecked {@link IllegalStateException}
  * if anything goes wrong during startup - you should probably handle it and use {@link Exception#getCause()} to figure
  * out what went wrong more precisely. Same thing if you just use the {@link #startAsync()} method.</p>
  */
@@ -110,7 +110,7 @@ public class WalletAppKit extends AbstractIdleService {
     public WalletAppKit connectToLocalHost() {
         try {
             final InetAddress localHost = InetAddress.getLocalHost();
-            return setPeerNodes(new PeerAddress(localHost, params.getPort()));
+            return setPeerNodes(new PeerAddress(localHost, params.getPort(), params.protocolVersion));
         } catch (UnknownHostException e) {
             // Borked machine with no loopback adapter configured properly.
             throw new RuntimeException(e);
@@ -245,7 +245,7 @@ public class WalletAppKit extends AbstractIdleService {
             boolean chainFileExists = chainFile.exists();
             vWalletFile = new File(directory, filePrefix + ".wallet");
             boolean shouldReplayWallet = (vWalletFile.exists() && !chainFileExists) || restoreFromSeed != null;
-            vWallet = createOrLoadWallet(shouldReplayWallet);
+            vWallet = createOrLoadWallet(shouldReplayWallet, params.getCoinDefinition());
 
             // Initiate Bitcoin network objects (block store, blockchain and peer group)
             vStore = new SPVBlockStore(params, chainFile);
@@ -297,7 +297,7 @@ public class WalletAppKit extends AbstractIdleService {
                 listener.await();
             } else {
                 vPeerGroup.startAsync();
-                vPeerGroup.addListener(new Service.Listener() {
+                vPeerGroup.addListener(new Listener() {
                     @Override
                     public void running() {
                         completeExtensionInitiations(vPeerGroup);
@@ -316,13 +316,13 @@ public class WalletAppKit extends AbstractIdleService {
         }
     }
 
-    private Wallet createOrLoadWallet(boolean shouldReplayWallet) throws Exception {
+    private Wallet createOrLoadWallet(boolean shouldReplayWallet, CoinDefinition definition) throws Exception {
         Wallet wallet;
 
         maybeMoveOldWalletOutOfTheWay();
 
         if (vWalletFile.exists()) {
-            wallet = loadWallet(shouldReplayWallet);
+            wallet = loadWallet(shouldReplayWallet, definition);
         } else {
             wallet = createWallet();
             wallet.freshReceiveKey();
@@ -337,7 +337,7 @@ public class WalletAppKit extends AbstractIdleService {
         return wallet;
     }
 
-    private Wallet loadWallet(boolean shouldReplayWallet) throws Exception {
+    private Wallet loadWallet(boolean shouldReplayWallet, CoinDefinition definition) throws Exception {
         Wallet wallet;
         FileInputStream walletStream = new FileInputStream(vWalletFile);
         try {
@@ -347,9 +347,9 @@ public class WalletAppKit extends AbstractIdleService {
             Protos.Wallet proto = WalletProtobufSerializer.parseToProto(walletStream);
             final WalletProtobufSerializer serializer;
             if (walletFactory != null)
-                serializer = new WalletProtobufSerializer(walletFactory);
+                serializer = new WalletProtobufSerializer(walletFactory, definition);
             else
-                serializer = new WalletProtobufSerializer();
+                serializer = new WalletProtobufSerializer(definition);
             wallet = serializer.readWallet(params, extArray, proto);
             if (shouldReplayWallet)
                 wallet.reset();

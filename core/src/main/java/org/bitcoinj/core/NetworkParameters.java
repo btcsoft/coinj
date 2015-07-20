@@ -1,6 +1,7 @@
 /**
  * Copyright 2011 Google Inc.
  * Copyright 2014 Andreas Schildbach
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,18 +18,24 @@
 
 package org.bitcoinj.core;
 
-import org.bitcoinj.params.*;
+import com.google.common.base.Charsets;
+import com.google.common.base.Objects;
+import org.bitcoinj.params.MainNetParams;
+import org.bitcoinj.params.RegTestParams;
+import org.bitcoinj.params.TestNet3Params;
+import org.bitcoinj.params.UnitTestParams;
 import org.bitcoinj.script.Script;
 import org.bitcoinj.script.ScriptOpCodes;
-import com.google.common.base.Objects;
+import org.coinj.api.*;
 
 import javax.annotation.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.Serializable;
 import java.math.BigInteger;
-import java.util.*;
+import java.util.HashMap;
 
-import static org.bitcoinj.core.Coin.*;
+import static org.bitcoinj.core.Coin.maxMoney;
+import static org.bitcoinj.core.Coin.valueOf;
 
 /**
  * <p>NetworkParameters contains the data needed for working with an instantiation of a Bitcoin chain.</p>
@@ -39,31 +46,38 @@ import static org.bitcoinj.core.Coin.*;
  * them, you are encouraged to call the static get() methods on each specific params class directly.</p>
  */
 public abstract class NetworkParameters implements Serializable {
+
+    private static final long serialVersionUID = -8795923690325415007L;
     /**
      * The protocol version this library implements.
      */
-    public static final int PROTOCOL_VERSION = 70001;
+    public final int protocolVersion;
 
     /**
-     * The alert signing key originally owned by Satoshi, and now passed on to Gavin along with a few others.
+     * The maximum money to be generated
      */
-    public static final byte[] SATOSHI_KEY = Utils.HEX.decode("04fc9702847840aaf195de8442ebecedf5b095cdbb9bc716bda9110971b28a49e0ead8564ff0db22209e0374782c093bb899692d524e9d6a6956e7c5ecbcd68284");
+    public final Coin maxMoney;
 
-    /** The string returned by getId() for the main, production network where people trade things. */
-    public static final String ID_MAINNET = "org.bitcoin.production";
-    /** The string returned by getId() for the testnet. */
-    public static final String ID_TESTNET = "org.bitcoin.test";
-    /** The string returned by getId() for regtest mode. */
-    public static final String ID_REGTEST = "org.bitcoin.regtest";
-    /** Unit test network. */
-    public static final String ID_UNITTESTNET = "org.bitcoinj.unittest";
+    /**
+     * A constant shared by the entire network: how large in bytes a block is allowed to be. One day we may have to
+     * upgrade everyone to change this, so Bitcoin can continue to grow. For now it exists as an anti-DoS measure to
+     * avoid somebody creating a titanically huge but valid block and forcing everyone to download/store it forever.
+     */
+    public final int maxBlockSize;
+    /**
+     * A "sigop" is a signature verification operation. Because they're expensive we also impose a separate limit on
+     * the number in a block to prevent somebody mining a huge block that has way more sigops than normal, so is very
+     * expensive/slow to verify.
+     */
+    public final int maxBlockSigops;
 
-    /** The string used by the payment protocol to represent the main net. */
-    public static final String PAYMENT_PROTOCOL_ID_MAINNET = "main";
-    /** The string used by the payment protocol to represent the test net. */
-    public static final String PAYMENT_PROTOCOL_ID_TESTNET = "test";
+    private final CoinDefinition coinDefinition;
+    private final NetworkExtensionsContainer extensionsContainer;
 
     // TODO: Seed nodes should be here as well.
+
+    @Nullable
+    protected CoinDefinition.StandardNetworkId standardNetworkId;
 
     protected Block genesisBlock;
     protected BigInteger maxTarget;
@@ -72,9 +86,13 @@ public abstract class NetworkParameters implements Serializable {
     protected int addressHeader;
     protected int p2shHeader;
     protected int dumpedPrivateKeyHeader;
-    protected int interval;
-    protected int targetTimespan;
+    protected byte[] signedMessageHeaderBytes;
+    /**
+     * The alert signing key (in bitcoin originally owned by Satoshi, and now passed on to Gavin along with a few others).
+     */
     protected byte[] alertSigningKey;
+
+    protected String paymentProtocolId;
 
     /**
      * See getId(). This may be null for old deserialized wallets. In that case we derive it heuristically
@@ -90,92 +108,100 @@ public abstract class NetworkParameters implements Serializable {
     
     protected int[] acceptableAddressCodes;
     protected String[] dnsSeeds;
-    protected Map<Integer, Sha256Hash> checkpoints = new HashMap<Integer, Sha256Hash>();
+    protected HashMap<Integer, Sha256Hash> checkpoints = new HashMap<Integer, Sha256Hash>();
 
-    protected NetworkParameters() {
-        alertSigningKey = SATOSHI_KEY;
-        genesisBlock = createGenesis(this);
+    protected NetworkParameters(CoinDefinition coinDefinition) {
+        this.coinDefinition = coinDefinition;
+
+        protocolVersion = coinDefinition.getProtocolVersion();
+        maxMoney = maxMoney(coinDefinition);
+        maxBlockSize = coinDefinition.getMaxBlockSize();
+        maxBlockSigops = maxBlockSize / 50;
+
+        signedMessageHeaderBytes = generateSignedMessage(coinDefinition);
+
+        extensionsContainer = coinDefinition.createNetworkExtensionsContainer(this);
     }
 
-    private static Block createGenesis(NetworkParameters n) {
-        Block genesisBlock = new Block(n);
-        Transaction t = new Transaction(n);
+    protected NetworkParameters(CoinDefinition coinDefinition, NetworkMode networkMode) {
+        this.coinDefinition = coinDefinition;
+
+        protocolVersion = coinDefinition.getProtocolVersion();
+        maxMoney = maxMoney(coinDefinition);
+        maxBlockSize = coinDefinition.getMaxBlockSize();
+        maxBlockSigops = maxBlockSize / 50;
+
+        signedMessageHeaderBytes = generateSignedMessage(coinDefinition);
+
+        extensionsContainer = coinDefinition.createNetworkExtensionsContainer(this, networkMode);
+    }
+
+    protected static Block createGenesis(NetworkParameters n, GenesisBlockInfo genesisBlockInfo) {
+        final Block genesisBlock = new Block(n);
+        final Transaction t = new Transaction(n);
         try {
-            // A script containing the difficulty bits and the following message:
-            //
-            //   "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks"
-            byte[] bytes = Utils.HEX.decode
-                    ("04ffff001d0104455468652054696d65732030332f4a616e2f32303039204368616e63656c6c6f72206f6e206272696e6b206f66207365636f6e64206261696c6f757420666f722062616e6b73");
-            t.addInput(new TransactionInput(n, t, bytes));
-            ByteArrayOutputStream scriptPubKeyBytes = new ByteArrayOutputStream();
-            Script.writeBytes(scriptPubKeyBytes, Utils.HEX.decode
-                    ("04678afdb0fe5548271967f1a67130b7105cd6a828e03909a67962e0ea1f61deb649f6bc3f4cef38c4f35504e51ec112de5c384df7ba0b8d578a4c702b6bf11d5f"));
+            // A script containing the difficulty bits and the message
+            if (genesisBlockInfo.genesisTxInBytes != null) {
+                final byte[] bytes = Utils.HEX.decode(genesisBlockInfo.genesisTxInBytes);
+                t.addInput(new TransactionInput(n, t, bytes));
+            }
+
+            final ByteArrayOutputStream scriptPubKeyBytes = new ByteArrayOutputStream();
+            Script.writeBytes(scriptPubKeyBytes, Utils.HEX.decode(genesisBlockInfo.genesisTxOutBytes));
             scriptPubKeyBytes.write(ScriptOpCodes.OP_CHECKSIG);
-            t.addOutput(new TransactionOutput(n, t, FIFTY_COINS, scriptPubKeyBytes.toByteArray()));
+            t.addOutput(new TransactionOutput(n, t, valueOf(genesisBlockInfo.genesisBlockValue, 0), scriptPubKeyBytes.toByteArray()));
         } catch (Exception e) {
             // Cannot happen.
             throw new RuntimeException(e);
         }
         genesisBlock.addTransaction(t);
+
+        genesisBlock.setDifficultyTarget(genesisBlockInfo.genesisBlockDifficultyTarget);
+        genesisBlock.setTime(genesisBlockInfo.genesisBlockTime);
+        genesisBlock.setNonce(genesisBlockInfo.genesisBlockNonce);
+        if (genesisBlockInfo.genesisMerkleRoot != null) {
+            genesisBlock.setMerkleRoot(new Sha256Hash(Utils.HEX.decode(genesisBlockInfo.genesisMerkleRoot)));
+        }
+
+        genesisBlockInfo.checkGenesisHash(genesisBlock.getHashAsString());
+
         return genesisBlock;
     }
 
-    public static final int TARGET_TIMESPAN = 14 * 24 * 60 * 60;  // 2 weeks per difficulty cycle, on average.
-    public static final int TARGET_SPACING = 10 * 60;  // 10 minutes per block.
-    public static final int INTERVAL = TARGET_TIMESPAN / TARGET_SPACING;
-    
+    protected static byte[] generateSignedMessage(CoinDefinition coinDefinition) {
+        final String signedMessage = (new StringBuilder(30))
+                .append(coinDefinition.getSignedMessageName())
+                .append(SIGNED_MESSAGE_SUFFIX)
+                .toString();
+        return signedMessage.getBytes(Charsets.UTF_8);
+    }
+
+    protected final void fillProtectedValues() {
+        maxTarget = coinDefinition.getProofOfWorkLimit(standardNetworkId);
+        addressHeader = coinDefinition.getPubkeyAddressHeader(standardNetworkId);
+        dumpedPrivateKeyHeader = coinDefinition.getDumpedPrivateKeyHeader(standardNetworkId);
+        p2shHeader = coinDefinition.getP2shAddressHeader(standardNetworkId);
+        acceptableAddressCodes = new int[] { addressHeader, p2shHeader };
+        port = coinDefinition.getPort(standardNetworkId);
+        packetMagic = coinDefinition.getPacketMagic(standardNetworkId);
+
+        genesisBlock = createGenesis(this, coinDefinition.getGenesisBlockInfo(standardNetworkId));
+
+        subsidyDecreaseBlockCount = coinDefinition.getSubsidyDecreaseBlockCount(standardNetworkId);
+        spendableCoinbaseDepth = coinDefinition.getSpendableDepth(standardNetworkId);
+        dnsSeeds = coinDefinition.getDnsSeeds(standardNetworkId);
+        alertSigningKey = Utils.HEX.decode(coinDefinition.getAlertKey(standardNetworkId));
+        paymentProtocolId = coinDefinition.getPaymentProtocolId(standardNetworkId);
+    }
+
     /**
      * Blocks with a timestamp after this should enforce BIP 16, aka "Pay to script hash". This BIP changed the
      * network rules in a soft-forking manner, that is, blocks that don't follow the rules are accepted but not
      * mined upon and thus will be quickly re-orged out as long as the majority are enforcing the rule.
      */
     public static final int BIP16_ENFORCE_TIME = 1333238400;
-    
-    /**
-     * The maximum number of coins to be generated
-     */
-    public static final long MAX_COINS = 21000000;
 
-    /**
-     * The maximum money to be generated
-     */
-    public static final Coin MAX_MONEY = COIN.multiply(MAX_COINS);
-
-    /** Alias for TestNet3Params.get(), use that instead. */
-    @Deprecated
-    public static NetworkParameters testNet() {
-        return TestNet3Params.get();
-    }
-
-    /** Alias for TestNet2Params.get(), use that instead. */
-    @Deprecated
-    public static NetworkParameters testNet2() {
-        return TestNet2Params.get();
-    }
-
-    /** Alias for TestNet3Params.get(), use that instead. */
-    @Deprecated
-    public static NetworkParameters testNet3() {
-        return TestNet3Params.get();
-    }
-
-    /** Alias for MainNetParams.get(), use that instead */
-    @Deprecated
-    public static NetworkParameters prodNet() {
-        return MainNetParams.get();
-    }
-
-    /** Returns a testnet params modified to allow any difficulty target. */
-    @Deprecated
-    public static NetworkParameters unitTests() {
-        return UnitTestParams.get();
-    }
-
-    /** Returns a standard regression test params (similar to unitTests) */
-    @Deprecated
-    public static NetworkParameters regTests() {
-        return RegTestParams.get();
-    }
+    private static final String SIGNED_MESSAGE_SUFFIX = " Signed Message:\n";
 
     /**
      * A Java package style string acting as unique ID for these parameters
@@ -184,7 +210,14 @@ public abstract class NetworkParameters implements Serializable {
         return id;
     }
 
-    public abstract String getPaymentProtocolId();
+    public boolean isMainNet() {
+        return id.equals(coinDefinition.getIdMainNet());
+    }
+
+    @Nullable
+    public CoinDefinition.StandardNetworkId getStandardNetworkId() {
+        return standardNetworkId;
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -202,14 +235,28 @@ public abstract class NetworkParameters implements Serializable {
     /** Returns the network parameters for the given string ID or NULL if not recognized. */
     @Nullable
     public static NetworkParameters fromID(String id) {
-        if (id.equals(ID_MAINNET)) {
-            return MainNetParams.get();
-        } else if (id.equals(ID_TESTNET)) {
-            return TestNet3Params.get();
-        } else if (id.equals(ID_UNITTESTNET)) {
-            return UnitTestParams.get();
-        } else if (id.equals(ID_REGTEST)) {
-            return RegTestParams.get();
+        final String coinName = extractCoinNameFromID(id);
+        CoinDefinition coinDef = CoinLocator.getCoinDefinition(coinName);
+
+        if (coinDef == null) {
+            if (coinName.endsWith("j")) {
+                coinDef = CoinLocator.getCoinDefinition(coinName.substring(0, coinName.length() - 1));
+                if (coinDef == null) {
+                    throw new IllegalArgumentException("Can't find coin with name \"" + coinName + "\" for network parameters ID " + id);
+                }
+            } else {
+                throw new IllegalArgumentException("Can't find coin with name \"" + coinName + "\" for network parameters ID " + id);
+            }
+        }
+
+        if (id.equals(coinDef.getIdMainNet())) {
+            return MainNetParams.get(coinDef);
+        } else if (id.equals(coinDef.getIdTestNet())) {
+            return TestNet3Params.get(coinDef);
+        } else if (id.equals(coinDef.getIdUnitTestNet())) {
+            return UnitTestParams.get(coinDef);
+        } else if (id.equals(coinDef.getIdRegTest())) {
+            return RegTestParams.get(coinDef);
         } else {
             return null;
         }
@@ -218,13 +265,32 @@ public abstract class NetworkParameters implements Serializable {
     /** Returns the network parameters for the given string paymentProtocolID or NULL if not recognized. */
     @Nullable
     public static NetworkParameters fromPmtProtocolID(String pmtProtocolId) {
-        if (pmtProtocolId.equals(PAYMENT_PROTOCOL_ID_MAINNET)) {
-            return MainNetParams.get();
-        } else if (pmtProtocolId.equals(PAYMENT_PROTOCOL_ID_TESTNET)) {
-            return TestNet3Params.get();
+        final CoinDefinition coinDef = CoinLocator.discoverCoinDefinition();
+
+        if (pmtProtocolId.equals(coinDef.getPaymentProtocolId(CoinDefinition.MAIN_NETWORK_STANDARD))) {
+            return MainNetParams.get(coinDef);
+        } else if (pmtProtocolId.equals(coinDef.getPaymentProtocolId(CoinDefinition.TEST_NETWORK_STANDARD))) {
+            return TestNet3Params.get(coinDef);
+        } else if (pmtProtocolId.equals(coinDef.getPaymentProtocolId(CoinDefinition.REG_TEST_STANDARD))) {
+            return RegTestParams.get(coinDef);
         } else {
             return null;
         }
+    }
+
+    private static String extractCoinNameFromID(String id) {
+        final int iDotLast = id.lastIndexOf('.');
+        final int iDotFirst = id.indexOf('.');
+        if (iDotFirst == iDotLast) {
+            return id;
+        }
+        if (iDotLast > 0) {
+            id = id.substring(0, iDotLast);
+        }
+        if (iDotFirst >= 0 && iDotFirst != id.length() - 1) {
+            id = id.substring(iDotFirst + 1);
+        }
+        return id;
     }
 
     public int getSpendableCoinbaseDepth() {
@@ -271,6 +337,10 @@ public abstract class NetworkParameters implements Serializable {
         return genesisBlock;
     }
 
+    public String getGenesisBlockHash() {
+        return genesisBlock.getHashAsString();
+    }
+
     /** Default TCP port on which to connect to nodes. */
     public int getPort() {
         return port;
@@ -307,8 +377,12 @@ public abstract class NetworkParameters implements Serializable {
      * significantly different from this value, the network difficulty formula will produce a different value. Both
      * test and production Bitcoin networks use 2 weeks (1209600 seconds).
      */
-    public int getTargetTimespan() {
-        return targetTimespan;
+    public int getTargetTimespan(Block block, int height) {
+        return coinDefinition.getTargetTimespan(block, height, standardNetworkId);
+    }
+
+    public int getTargetSpacing(Block block, int height) {
+        return coinDefinition.getTargetSpacing(block, height, standardNetworkId);
     }
 
     /**
@@ -328,8 +402,12 @@ public abstract class NetworkParameters implements Serializable {
     }
 
     /** How many blocks pass between difficulty adjustment periods. Bitcoin standardises this to be 2015. */
-    public int getInterval() {
-        return interval;
+    public int getInterval(Block block, int height) {
+        return coinDefinition.getInterval(block, height, standardNetworkId);
+    }
+
+    public int getAllowedBlockTimeDrift() {
+        return coinDefinition.getAllowedBlockTimeDrift(standardNetworkId);
     }
 
     /** Maximum target represents the easiest allowable proof of work. */
@@ -344,4 +422,17 @@ public abstract class NetworkParameters implements Serializable {
     public byte[] getAlertSigningKey() {
         return alertSigningKey;
     }
+
+    public CoinDefinition getCoinDefinition() {
+        return coinDefinition;
+    }
+
+    public String getPaymentProtocolId() {
+        return paymentProtocolId;
+    }
+
+    public NetworkExtensionsContainer getExtensionsContainer() {
+        return extensionsContainer;
+    }
+
 }

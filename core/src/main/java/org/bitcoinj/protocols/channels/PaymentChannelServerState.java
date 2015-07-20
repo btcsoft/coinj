@@ -101,7 +101,7 @@ public class PaymentChannelServerState {
 
     // The total value locked into the multi-sig output and the value to us in the last signature the client provided
     private Coin totalValue;
-    private Coin bestValueToMe = Coin.ZERO;
+    private Coin bestValueToMe;
     private Coin feePaidForPayment;
 
     // The refund/change transaction output that goes back to the client
@@ -115,6 +115,8 @@ public class PaymentChannelServerState {
     PaymentChannelServerState(StoredServerChannel storedServerChannel, Wallet wallet, TransactionBroadcaster broadcaster) throws VerificationException {
         synchronized (storedServerChannel) {
             this.wallet = checkNotNull(wallet);
+            final Coin zero = Coin.zero(wallet.getParams().getCoinDefinition());
+            this.bestValueToMe = zero;
             this.broadcaster = checkNotNull(broadcaster);
             this.multisigContract = checkNotNull(storedServerChannel.contract);
             this.multisigScript = multisigContract.getOutput(0).getScriptPubKey();
@@ -125,7 +127,7 @@ public class PaymentChannelServerState {
             this.totalValue = multisigContract.getOutput(0).getValue();
             this.bestValueToMe = checkNotNull(storedServerChannel.bestValueToMe);
             this.bestValueSignature = storedServerChannel.bestValueSignature;
-            checkArgument(bestValueToMe.equals(Coin.ZERO) || bestValueSignature != null);
+            checkArgument(bestValueToMe.equals(zero) || bestValueSignature != null);
             this.storedServerChannel = storedServerChannel;
             storedServerChannel.state = this;
             this.state = State.READY;
@@ -145,6 +147,7 @@ public class PaymentChannelServerState {
         this.state = State.WAITING_FOR_REFUND_TRANSACTION;
         this.serverKey = checkNotNull(serverKey);
         this.wallet = checkNotNull(wallet);
+        this.bestValueToMe = Coin.zero(wallet.getParams().getCoinDefinition());
         this.broadcaster = checkNotNull(broadcaster);
         this.minExpireTime = minExpireTime;
     }
@@ -242,7 +245,7 @@ public class PaymentChannelServerState {
                 try {
                     // Manually add the multisigContract to the wallet, overriding the isRelevant checks so we can track
                     // it and check for double-spends later
-                    wallet.receivePending(multisigContract, null, true);
+                    wallet.receivePending(multisigContract, null, null, true);
                 } catch (VerificationException e) {
                     throw new RuntimeException(e); // Cannot happen, we already called multisigContract.verify()
                 }
@@ -264,7 +267,7 @@ public class PaymentChannelServerState {
     // Create a payment transaction with valueToMe going back to us
     private synchronized Wallet.SendRequest makeUnsignedChannelContract(Coin valueToMe) {
         Transaction tx = new Transaction(wallet.getParams());
-        if (!totalValue.subtract(valueToMe).equals(Coin.ZERO)) {
+        if (!totalValue.subtract(valueToMe).equals(totalValue.getZero())) {
             clientOutput.setValue(totalValue.subtract(valueToMe));
             tx.addOutput(clientOutput);
         }
@@ -289,7 +292,7 @@ public class PaymentChannelServerState {
         TransactionSignature signature = TransactionSignature.decodeFromBitcoin(signatureBytes, true);
         // We allow snapping to zero for the payment amount because it's treated specially later, but not less than
         // the dust level because that would prevent the transaction from being relayed/mined.
-        final boolean fullyUsedUp = refundSize.equals(Coin.ZERO);
+        final boolean fullyUsedUp = refundSize.equals(refundSize.getZero());
         if (refundSize.compareTo(clientOutput.getMinNonDustValue()) < 0 && !fullyUsedUp)
             throw new ValueOutOfRangeException("Attempt to refund negative value or value too small to be accepted by the network");
         Coin newValueToMe = totalValue.subtract(refundSize);
@@ -308,7 +311,7 @@ public class PaymentChannelServerState {
         // miss most double-spends due to bloom filtering right now anyway. This will eventually fixed by network-wide
         // double-spend notifications, so we just wait instead of attempting to add all dependant outpoints to our bloom
         // filters (and probably missing lots of edge-cases).
-        if (walletContract.getConfidence().getConfidenceType() == TransactionConfidence.ConfidenceType.DEAD) {
+        if (walletContract.getConfidence().getConfidenceType().equals(TransactionConfidence.ConfidenceType.DEAD)) {
             close();
             throw new VerificationException("Multisig contract was double-spent");
         }

@@ -1,5 +1,6 @@
 /**
  * Copyright 2012 Matt Corallo.
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +25,7 @@ import java.math.BigInteger;
  * It avoids having to store the entire parentTransaction just to get the hash and index.
  * Its only really useful for MemoryFullPrunedBlockStore, and should probably be moved there
  */
-public class StoredTransactionOutput implements Serializable {
+public class StoredTransactionOutput implements Serializable, Hashable {
     private static final long serialVersionUID = -8744924157056340509L;
 
     /**
@@ -44,6 +45,7 @@ public class StoredTransactionOutput implements Serializable {
     private static final int NONCOINBASE_HEIGHT = -200;
     /** The height of the creating block (for coinbases, NONCOINBASE_HEIGHT otherwise) */
     private int height;
+    private boolean spendingCoinbase;
 
     /**
      * Creates a stored transaction output
@@ -51,13 +53,14 @@ public class StoredTransactionOutput implements Serializable {
      * @param index the outpoint
      * @param value the value available
      * @param height the height this output was created in
-     * @param scriptBytes
+     * @param scriptBytes output script
      */
     public StoredTransactionOutput(Sha256Hash hash, long index, Coin value, int height, boolean isCoinbase, byte[] scriptBytes) {
         this.hash = hash;
         this.index = index;
         this.value = value;
-        this.height = isCoinbase ? height : NONCOINBASE_HEIGHT;
+        this.height = height;
+        spendingCoinbase = isCoinbase;
         this.scriptBytes = scriptBytes;
     }
 
@@ -65,7 +68,8 @@ public class StoredTransactionOutput implements Serializable {
         this.hash = hash;
         this.index = out.getIndex();
         this.value = out.getValue();
-        this.height = isCoinbase ? height : NONCOINBASE_HEIGHT;
+        this.height = height;
+        spendingCoinbase = isCoinbase;
         this.scriptBytes = out.getScriptBytes();
     }
 
@@ -97,6 +101,8 @@ public class StoredTransactionOutput implements Serializable {
                  ((in.read() & 0xFF) << 8) |
                  ((in.read() & 0xFF) << 16) |
                  ((in.read() & 0xFF) << 24);
+
+        spendingCoinbase = in.read() != 0;
     }
 
     /**
@@ -119,6 +125,7 @@ public class StoredTransactionOutput implements Serializable {
      * The hash of the transaction which holds this output
      * @return the hash
      */
+    @Override
     public Sha256Hash getHash() {
         return hash;
     }
@@ -134,6 +141,10 @@ public class StoredTransactionOutput implements Serializable {
     /**
      * Gets the height of the block that created this output (or -1 if this output was not created by a coinbase)
      */
+    public int getCoinbaseHeight() {
+        return spendingCoinbase ? height : NONCOINBASE_HEIGHT;
+    }
+
     public int getHeight() {
         return height;
     }
@@ -173,5 +184,8 @@ public class StoredTransactionOutput implements Serializable {
         bos.write(0xFF & (height >> 8));
         bos.write(0xFF & (height >> 16));
         bos.write(0xFF & (height >> 24));
+
+        bos.write(spendingCoinbase ? 1 : 0);
     }
+
 }

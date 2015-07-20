@@ -1,6 +1,7 @@
 /**
  * Copyright 2012 Google Inc.
  * Copyright 2014 Andreas Schildbach
+ * Copyright 2015 BitTechCenter Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +18,11 @@
 
 package org.bitcoinj.store;
 
+import com.google.common.collect.Lists;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.TextFormat;
+import com.google.protobuf.WireFormat;
 import org.bitcoinj.core.*;
 import org.bitcoinj.core.TransactionConfidence.ConfidenceType;
 import org.bitcoinj.crypto.KeyCrypter;
@@ -27,15 +33,11 @@ import org.bitcoinj.signers.TransactionSigner;
 import org.bitcoinj.utils.ExchangeRate;
 import org.bitcoinj.utils.Fiat;
 import org.bitcoinj.wallet.KeyChainGroup;
-import org.bitcoinj.wallet.WalletTransaction;
-import com.google.common.collect.Lists;
-import com.google.protobuf.ByteString;
-import com.google.protobuf.CodedInputStream;
-import com.google.protobuf.TextFormat;
-import com.google.protobuf.WireFormat;
-
 import org.bitcoinj.wallet.Protos;
 import org.bitcoinj.wallet.Protos.Wallet.EncryptionType;
+import org.bitcoinj.wallet.WalletTransaction;
+import org.coinj.api.CoinDefinition;
+import org.coinj.api.WalletProtobufSerializerExtension;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -83,6 +85,7 @@ public class WalletProtobufSerializer {
     }
 
     private final WalletFactory factory;
+    private WalletProtobufSerializerExtension extension;
 
     public WalletProtobufSerializer() {
         this(new WalletFactory() {
@@ -91,6 +94,21 @@ public class WalletProtobufSerializer {
                 return new Wallet(params, keyChainGroup);
             }
         });
+    }
+
+    public WalletProtobufSerializer(CoinDefinition definition) {
+        this(new WalletFactory() {
+            @Override
+            public Wallet create(NetworkParameters params, KeyChainGroup keyChainGroup) {
+                return new Wallet(params, keyChainGroup);
+            }
+        }, definition);
+    }
+
+    public WalletProtobufSerializer(WalletFactory factory, CoinDefinition definition) {
+        txMap = new HashMap<ByteString, Transaction>();
+        this.factory = factory;
+        extension = definition.createWalletProtobufSerializerExtension(this);
     }
 
     public WalletProtobufSerializer(WalletFactory factory) {
@@ -141,7 +159,7 @@ public class WalletProtobufSerializer {
         }
 
         for (WalletTransaction wtx : wallet.getWalletTransactions()) {
-            Protos.Transaction txProto = makeTxProto(wtx);
+            Protos.Transaction txProto = makeTxProto(wtx, extension);
             walletBuilder.addTransaction(txProto);
         }
 
@@ -223,13 +241,14 @@ public class WalletProtobufSerializer {
         }
     }
 
-    private static Protos.Transaction makeTxProto(WalletTransaction wtx) {
+    private static Protos.Transaction makeTxProto(WalletTransaction wtx, WalletProtobufSerializerExtension extension) {
         Transaction tx = wtx.getTransaction();
         Protos.Transaction.Builder txBuilder = Protos.Transaction.newBuilder();
-        
-        txBuilder.setPool(getProtoPool(wtx))
-                 .setHash(hashToByteString(tx.getHash()))
-                 .setVersion((int) tx.getVersion());
+
+        txBuilder.setPool(getProtoPool(wtx, extension))
+                .setHash(hashToByteString(tx.getHash()))
+                .setVersion((int) tx.getVersion())
+                .setExtension(extension.protoFromTransactionExtension(tx.getTransactionExtension()));
 
         if (tx.getUpdateTime() != null) {
             txBuilder.setUpdatedAt(tx.getUpdateTime().getTime());
@@ -309,14 +328,22 @@ public class WalletProtobufSerializer {
         return txBuilder.build();
     }
 
-    private static Protos.Transaction.Pool getProtoPool(WalletTransaction wtx) {
-        switch (wtx.getPool()) {
-            case UNSPENT: return Protos.Transaction.Pool.UNSPENT;
-            case SPENT: return Protos.Transaction.Pool.SPENT;
-            case DEAD: return Protos.Transaction.Pool.DEAD;
-            case PENDING: return Protos.Transaction.Pool.PENDING;
-            default:
+    private static Protos.Transaction.Pool getProtoPool(WalletTransaction wtx, WalletProtobufSerializerExtension extension) {
+        final WalletTransaction.Pool pool = wtx.getPool();
+        if (pool == WalletTransaction.Pool.UNSPENT) {
+            return Protos.Transaction.Pool.UNSPENT;
+        } else if (pool == WalletTransaction.Pool.SPENT) {
+            return Protos.Transaction.Pool.SPENT;
+        } else if (pool == WalletTransaction.Pool.DEAD) {
+            return Protos.Transaction.Pool.DEAD;
+        } else if (pool == WalletTransaction.Pool.PENDING) {
+            return Protos.Transaction.Pool.PENDING;
+        } else {
+            final Protos.Transaction.Pool extendedPool = extension.getProtoExtendedPool(pool);
+            if (extendedPool == null) {
                 throw new RuntimeException("Unreachable");
+            }
+            return extendedPool;
         }
     }
 
@@ -324,12 +351,12 @@ public class WalletProtobufSerializer {
                                         TransactionConfidence confidence,
                                         Protos.TransactionConfidence.Builder confidenceBuilder) {
         synchronized (confidence) {
-            confidenceBuilder.setType(Protos.TransactionConfidence.Type.valueOf(confidence.getConfidenceType().getValue()));
-            if (confidence.getConfidenceType() == ConfidenceType.BUILDING) {
+            confidenceBuilder.setType(Protos.TransactionConfidence.Type.valueOf(confidence.getConfidenceType().value));
+            if (confidence.getConfidenceType().equals(ConfidenceType.BUILDING)) {
                 confidenceBuilder.setAppearedAtHeight(confidence.getAppearedAtChainHeight());
                 confidenceBuilder.setDepth(confidence.getDepthInBlocks());
             }
-            if (confidence.getConfidenceType() == ConfidenceType.DEAD) {
+            if (confidence.getConfidenceType().equals(ConfidenceType.DEAD)) {
                 // Copy in the overriding transaction, if available.
                 // (A dead coinbase transaction has no overriding transaction).
                 if (confidence.getOverridingTransaction() != null) {
@@ -386,6 +413,7 @@ public class WalletProtobufSerializer {
             NetworkParameters params = NetworkParameters.fromID(paramsID);
             if (params == null)
                 throw new UnreadableWalletException("Unknown network parameters ID " + paramsID);
+            extension = params.getCoinDefinition().createWalletProtobufSerializerExtension(this);
             return readWallet(params, null, walletProto);
         } catch (IOException e) {
             throw new UnreadableWalletException("Could not parse input stream to protobuf", e);
@@ -450,7 +478,7 @@ public class WalletProtobufSerializer {
 
         // Update transaction outputs to point to inputs that spend them
         for (Protos.Transaction txProto : walletProto.getTransactionList()) {
-            WalletTransaction wtx = connectTransactionOutputs(txProto);
+            WalletTransaction wtx = connectTransactionOutputs(txProto, params);
             wallet.addWalletTransaction(wtx);
         }
 
@@ -543,10 +571,15 @@ public class WalletProtobufSerializer {
 
     private void readTransaction(Protos.Transaction txProto, NetworkParameters params) throws UnreadableWalletException {
         Transaction tx = new Transaction(params);
+
+        if (txProto.hasExtension()) {
+            tx.setTransactionExtension(extension.transactionExtensionFromProto(txProto.getExtension(), tx));
+        }
+
         if (txProto.hasUpdatedAt()) {
             tx.setUpdateTime(new Date(txProto.getUpdatedAt()));
         }
-        
+
         for (Protos.TransactionOutput outputProto : txProto.getTransactionOutputList()) {
             Coin value = Coin.valueOf(outputProto.getValue());
             byte[] scriptBytes = outputProto.getScriptBytes().toByteArray();
@@ -613,10 +646,11 @@ public class WalletProtobufSerializer {
         txMap.put(txProto.getHash(), tx);
     }
 
-    private WalletTransaction connectTransactionOutputs(org.bitcoinj.wallet.Protos.Transaction txProto) throws UnreadableWalletException {
+    private WalletTransaction connectTransactionOutputs(org.bitcoinj.wallet.Protos.Transaction txProto, NetworkParameters params) throws UnreadableWalletException {
         Transaction tx = txMap.get(txProto.getHash());
+        final Protos.Transaction.Pool protosPool = txProto.getPool();
         final WalletTransaction.Pool pool;
-        switch (txProto.getPool()) {
+        switch (protosPool) {
             case DEAD: pool = WalletTransaction.Pool.DEAD; break;
             case PENDING: pool = WalletTransaction.Pool.PENDING; break;
             case SPENT: pool = WalletTransaction.Pool.SPENT; break;
@@ -630,7 +664,11 @@ public class WalletProtobufSerializer {
                 pool = WalletTransaction.Pool.PENDING;
                 break;
             default:
-                throw new UnreadableWalletException("Unknown transaction pool: " + txProto.getPool());
+                final WalletTransaction.Pool txsExtendedPool = extension.getTxsExtendedPool(protosPool);
+                if (txsExtendedPool == null) {
+                    throw new UnreadableWalletException("Unknown transaction pool: " + protosPool);
+                }
+                pool = txsExtendedPool;
         }
         for (int i = 0 ; i < tx.getOutputs().size() ; i++) {
             TransactionOutput output = tx.getOutputs().get(i);
@@ -651,14 +689,14 @@ public class WalletProtobufSerializer {
         if (txProto.hasConfidence()) {
             Protos.TransactionConfidence confidenceProto = txProto.getConfidence();
             TransactionConfidence confidence = tx.getConfidence();
-            readConfidence(tx, confidenceProto, confidence);
+            readConfidence(tx, confidenceProto, confidence, params);
         }
 
         return new WalletTransaction(pool, tx);
     }
 
     private void readConfidence(Transaction tx, Protos.TransactionConfidence confidenceProto,
-                                TransactionConfidence confidence) throws UnreadableWalletException {
+                                TransactionConfidence confidence, NetworkParameters params) throws UnreadableWalletException {
         // We are lenient here because tx confidence is not an essential part of the wallet.
         // If the tx has an unknown type of confidence, ignore.
         if (!confidenceProto.hasType()) {
@@ -666,34 +704,39 @@ public class WalletProtobufSerializer {
             return;
         }
         ConfidenceType confidenceType;
-        switch (confidenceProto.getType()) {
+        final Protos.TransactionConfidence.Type type = confidenceProto.getType();
+        switch (type) {
             case BUILDING: confidenceType = ConfidenceType.BUILDING; break;
             case DEAD: confidenceType = ConfidenceType.DEAD; break;
             // These two are equivalent (must be able to read old wallets).
             case NOT_IN_BEST_CHAIN: confidenceType = ConfidenceType.PENDING; break;
             case PENDING: confidenceType = ConfidenceType.PENDING; break;
             case UNKNOWN:
-                // Fall through.
-            default:
                 confidenceType = ConfidenceType.UNKNOWN; break;
+            default:
+                final ConfidenceType extConType = extension.getTxsExtendedConfidenceType(type);
+                if (extConType == null) {
+                    throw new UnreadableWalletException("Unknown extended transaction confidence type: " + type);
+                }
+                confidenceType = extConType;
         }
         confidence.setConfidenceType(confidenceType);
         if (confidenceProto.hasAppearedAtHeight()) {
-            if (confidence.getConfidenceType() != ConfidenceType.BUILDING) {
+            if (!confidence.getConfidenceType().equals(ConfidenceType.BUILDING)) {
                 log.warn("Have appearedAtHeight but not BUILDING for tx {}", tx.getHashAsString());
                 return;
             }
             confidence.setAppearedAtChainHeight(confidenceProto.getAppearedAtHeight());
         }
         if (confidenceProto.hasDepth()) {
-            if (confidence.getConfidenceType() != ConfidenceType.BUILDING) {
+            if (!confidence.getConfidenceType().equals(ConfidenceType.BUILDING)) {
                 log.warn("Have depth but not BUILDING for tx {}", tx.getHashAsString());
                 return;
             }
             confidence.setDepthInBlocks(confidenceProto.getDepth());
         }
         if (confidenceProto.hasOverridingTransaction()) {
-            if (confidence.getConfidenceType() != ConfidenceType.DEAD) {
+            if (!confidence.getConfidenceType().equals(ConfidenceType.DEAD)) {
                 log.warn("Have overridingTransaction but not OVERRIDDEN for tx {}", tx.getHashAsString());
                 return;
             }
@@ -713,7 +756,7 @@ public class WalletProtobufSerializer {
                 throw new UnreadableWalletException("Peer IP address does not have the right length", e);
             }
             int port = proto.getPort();
-            PeerAddress address = new PeerAddress(ip, port);
+            PeerAddress address = new PeerAddress(ip, port, params.protocolVersion);
             address.setServices(BigInteger.valueOf(proto.getServices()));
             confidence.markBroadcastBy(address);
         }

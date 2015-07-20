@@ -17,6 +17,7 @@
 
 package org.bitcoinj.protocols.payments;
 
+import org.coinj.api.CoinDefinition;
 import org.bitcoinj.core.*;
 import org.bitcoinj.crypto.TrustStoreLoader;
 import org.bitcoinj.params.MainNetParams;
@@ -32,7 +33,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Date;
 
-import static org.bitcoinj.core.Coin.COIN;
+import static org.bitcoinj.core.Coin.coin;
 import static org.junit.Assert.*;
 
 public class PaymentSessionTest {
@@ -45,7 +46,7 @@ public class PaymentSessionTest {
     private ECKey serverKey;
     private Transaction tx;
     private TransactionOutput outputToMe;
-    private Coin coin = COIN;
+    private Coin coin = coin(params.getCoinDefinition());
 
     @Before
     public void setUp() throws Exception {
@@ -97,7 +98,7 @@ public class PaymentSessionTest {
                 .setSerializedPaymentDetails(paymentDetails.toByteString())
                 .build();
         MockPaymentSession paymentSession = new MockPaymentSession(paymentRequest);
-        assertEquals(Coin.ZERO, paymentSession.getValue());
+        assertEquals(Coin.zero(paymentSession.getNetworkParameters().getCoinDefinition()), paymentSession.getValue());
         assertNull(paymentSession.getPaymentUrl());
         assertNull(paymentSession.getMemo());
     }
@@ -198,7 +199,7 @@ public class PaymentSessionTest {
         }
 
         @Override
-        protected ListenableFuture<PaymentProtocol.Ack> sendPayment(final URL url, final Protos.Payment payment) {
+        protected ListenableFuture<PaymentProtocol.Ack> sendPayment(final URL url, CoinDefinition def, final Protos.Payment payment) {
             paymentLog.add(new PaymentLogItem(url, payment));
             return null;
         }

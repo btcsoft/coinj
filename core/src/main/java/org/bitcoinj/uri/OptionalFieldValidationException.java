@@ -1,7 +1,7 @@
 package org.bitcoinj.uri;
 
 /**
- * <p>Exception to provide the following to {@link org.multibit.qrcode.BitcoinURI}:</p>
+ * <p>Exception to provide the following to {@link org.bitcoinj.uri.CoinURI}:</p>
  * <ul>
  * <li>Provision of parsing error messages</li>
  * </ul>
@@ -11,7 +11,7 @@ package org.bitcoinj.uri;
  * @since 0.3.0
  *         
  */
-public class OptionalFieldValidationException extends BitcoinURIParseException {
+public class OptionalFieldValidationException extends CoinURIParseException {
 
     public OptionalFieldValidationException(String s) {
         super(s);

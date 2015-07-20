@@ -16,10 +16,10 @@
 
 package org.bitcoinj.store;
 
-import org.bitcoinj.core.*;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
+import org.bitcoinj.core.*;
 
 import javax.annotation.Nullable;
 import java.io.Serializable;
@@ -240,7 +240,7 @@ public class MemoryFullPrunedBlockStore implements FullPrunedBlockStore {
     private StoredBlock chainHead;
     private StoredBlock verifiedChainHead;
     private int fullStoreDepth;
-    
+
     /**
      * Set up the MemoryFullPrunedBlockStore
      * @param params The network parameters of this block store - used to get genesis block
@@ -389,4 +389,5 @@ public class MemoryFullPrunedBlockStore implements FullPrunedBlockStore {
                 return true;
         return false;
     }
+
 }
