@@ -15,10 +15,12 @@ To get started, it is best to have the latest JDK and Maven installed. The HEAD 
 
 #### Building from the command line
 
-To perform a full build use
+To perform a full build for the first time 
 ```
-mvn clean package
+mvn clean package -DskipTests=true
 ```
+To enable tests you'll need to build [coinj-bitcoin](https://github.com/btcsoft/coinj-bitcoin) project. Or wait when it will be available through maven-central (coming soon).
+
 You can also run
 ```
 mvn site:site
