@@ -2,7 +2,7 @@
 
 The coinj library is universal Java tool for various crypto-coins, designed for easy implementation of crypto-coin (Bitcoin forks) protocols, which allows it to maintain a (coin specific) wallet and send/receive transactions without needing a local copy of coin's Core. It comes with full documentation and some example apps showing how to use it.
 
-There are some minimal public API extensions mainly visible by ```CoinDefinition``` interface which you can pass to ```NetworkParameters``` through public constructor or through factory methods. If no ```CoinDefinition``` object was passed (through using of conventional constructors and factory methods) then it will be discovered under the curtains through ```CoinLocator``` mechanism (which you can use to manuall register coin definitions or just rely on behind-the-curtains code using Services Java API).
+There are some minimal public API extensions mainly visible by ```CoinDefinition``` interface which you can pass to ```NetworkParameters``` through public constructor or through factory methods. If no ```CoinDefinition``` object was passed (if only conventional constructors and factory methods were used) then it will be discovered under the curtains through ```CoinLocator``` mechanism (which you can use to manuall register coin definitions or just rely on behind-the-curtains code using Services Java API).
 
 ### Technologies
 
