@@ -45,5 +45,5 @@ These are found in the `examples` module.
 Actual implementations for various crypto-coin networks can be found here:
 
 * [coinj-bitcoin](https://github.com/btcsoft/coinj-bitcoin) - bitcoin network, proof of concept of sort
-* [coinj-litecoin](https://github.com/btcsoft/coinj-litecoin) - litecoin network, you may call it standardized analogue to BitcoinJ for Litecoin; there are some coin-specific tests migrated from BitcoinJ with test data specifically altered for LTC's
-* [coinj-litecoin](https://github.com/btcsoft/dash-litecoin) - [DASH](https://dashpay.io) network; currently under active development but not yet ready for production
+* [coinj-litecoin](https://github.com/btcsoft/coinj-litecoin) - litecoin network library, you may call it standardized analogue to BitcoinJ for Litecoin; there are some coin-specific tests migrated from BitcoinJ with test data specifically altered for LTC's
+* [coinj-dash](https://github.com/btcsoft/dash-litecoin) - [DASH](https://dashpay.io) network library; currently under active development but not yet ready for production
